@@ -877,13 +877,13 @@ function getSwitchUserInjectionScript() {
         '        try { window.parent.postMessage({ type: "showProfiles" }, "*"); } catch (e) {}' +
         '    };' +
         '    var bindActivate = function(btn) {' +
-        '        btn.onclick = function(e) { triggerShowProfiles(e); };' +
+        '        btn.onclick = function(e) { triggerShowProfiles(e); return false; };' +
         '        btn.onkeydown = function(e) {' +
         '            var code = e ? (e.keyCode || e.which) : 0;' +
-        '            if (code === 13 || code === 32) { triggerShowProfiles(e); }' +
+        '            if (code === 13 || code === 32) { triggerShowProfiles(e); return false; }' +
         '        };' +
         '    };' +
-        '    var switchIconSvg = "<svg viewBox=\'0 0 24 24\' width=\'24\' height=\'24\' fill=\'currentColor\' aria-hidden=\'true\' style=\'pointer-events:none;display:block;\'><path d=\'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z\'/></svg>";' +
+        '    var switchIconSvg = "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' width=\'24\' height=\'24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'1.8\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'display:block;width:1em;height:1em\' aria-hidden=\'true\' focusable=\'false\'><circle cx=\'9\' cy=\'7\' r=\'3.5\'/><path d=\'M2.5 20.5c0-3.6 2.9-6.5 6.5-6.5 1.2 0 2.3.3 3.3.9\'/><path d=\'M14 14.5h8M14 14.5l2.6-2.6\'/><path d=\'M22 19.5h-8M22 19.5l-2.6 2.6\'/></svg>";' +
         '    var ensureButtons = function() {' +
         '        try {' +
         '            if (!document.getElementById("jf-switch-user-header-btn")) {' +
@@ -893,11 +893,11 @@ function getSwitchUserInjectionScript() {
         '                    var hBtn = document.createElement("button");' +
         '                    hBtn.type = "button";' +
         '                    hBtn.id = "jf-switch-user-header-btn";' +
+        '                    hBtn.setAttribute("is", "paper-icon-button-light");' +
         '                    hBtn.className = "headerButton headerButtonRight paper-icon-button-light jf-switch-user";' +
-        '                    hBtn.tabIndex = 0;' +
         '                    hBtn.title = "Switch user";' +
         '                    hBtn.setAttribute("aria-label", "Switch user");' +
-        '                    hBtn.innerHTML = switchIconSvg;' +
+        '                    hBtn.innerHTML = "<span class=\'material-icons\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span>";' +
         '                    bindActivate(hBtn);' +
         '                    var userBtn = headerRight ? headerRight.querySelector(".headerUserButton") : null;' +
         '                    if (headerRight && userBtn && userBtn.parentNode === headerRight) {' +
@@ -912,25 +912,35 @@ function getSwitchUserInjectionScript() {
         '                if (prefs) {' +
         '                    var logoutEl = prefs.querySelector(".btnLogout");' +
         '                    if (!logoutEl) {' +
-        '                        var candidates = prefs.querySelectorAll("button, a, .listItem");' +
+        '                        var candidates = prefs.querySelectorAll("a, button, .listItem, .listItemBodyText");' +
         '                        for (var i = 0; i < candidates.length; i++) {' +
         '                            var txt = (candidates[i].innerText || candidates[i].textContent || "").trim().toLowerCase();' +
-        '                            if (txt === "sign out" || txt === "log out" || txt === "logout" || txt.indexOf("sign out") !== -1) {' +
-        '                                logoutEl = candidates[i];' +
+        '                            if (txt === "sign out" || txt === "log out" || txt === "logout") {' +
+        '                                var cur = candidates[i];' +
+        '                                while (cur && cur !== prefs) {' +
+        '                                    var curTag = cur.tagName ? cur.tagName.toUpperCase() : "";' +
+        '                                    var curCls = (typeof cur.className === "string") ? cur.className : "";' +
+        '                                    if (curTag === "A" || curTag === "BUTTON" || curCls.indexOf("listItem-border") !== -1) {' +
+        '                                        logoutEl = cur;' +
+        '                                        break;' +
+        '                                    }' +
+        '                                    cur = cur.parentNode;' +
+        '                                }' +
+        '                                if (!logoutEl) { logoutEl = candidates[i]; }' +
         '                                break;' +
         '                            }' +
         '                        }' +
         '                    }' +
         '                    if (logoutEl && logoutEl.parentNode) {' +
-        '                        var pBtn = document.createElement("button");' +
-        '                        pBtn.type = "button";' +
+        '                        var pBtn = document.createElement("a");' +
         '                        pBtn.id = "jf-switch-user-prefs-btn";' +
-        '                        pBtn.className = "listItem listItem-border headerButton paper-icon-button-light jf-switch-user-prefs";' +
-        '                        pBtn.tabIndex = 0;' +
-        '                        pBtn.innerHTML = "<span style=\'display:inline-flex;align-items:center;margin-right:12px;\'>" + switchIconSvg + "</span><span>Switch user</span>";' +
-        '                        pBtn.style.cssText = "display:flex;align-items:center;width:100%;padding:12px 16px;margin-top:4px;background:transparent;color:inherit;border:none;cursor:pointer;text-align:left;font-size:inherit;";' +
+        '                        pBtn.setAttribute("is", "emby-linkbutton");' +
+        '                        pBtn.className = "emby-button listItem-border";' +
+        '                        pBtn.href = "#";' +
+        '                        pBtn.setAttribute("style", "display:block;margin:0;padding:0");' +
+        '                        pBtn.innerHTML = "<div class=\'listItem\'><span class=\'material-icons listItemIcon listItemIcon-transparent\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span><div class=\'listItemBody\'><div class=\'listItemBodyText\'>Switch User</div></div></div>";' +
         '                        bindActivate(pBtn);' +
-        '                        logoutEl.parentNode.insertBefore(pBtn, logoutEl.nextSibling);' +
+        '                        logoutEl.parentNode.insertBefore(pBtn, logoutEl);' +
         '                    }' +
         '                }' +
         '            }' +

@@ -17,9 +17,9 @@ function PROFILES() {
     this.quickConnectCode = null;
     this.quickConnectPollInterval = null;
     this.quickConnectEnabled = false;
-    this.manageMode = false;
     this._numPinKeyHandler = null;
     this._numPinState = null;
+    this._manualOverlayKeyHandler = null;
 }
 
 /**
@@ -428,22 +428,18 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
     }
     this.currentServer = serverInfo;
     this.onComplete = onComplete;
-    this.manageMode = false;
     options = options || {};
 
     // Check if Quick Connect is enabled on server
     this.checkQuickConnectEnabled(serverInfo.baseurl, function (enabled) {
         self.quickConnectEnabled = enabled;
-        var container = document.getElementById('profileSelection');
-        var grid = document.getElementById('profileGrid');
-        if (enabled && !self.manageMode && container && container.style.display === 'flex' && grid && !grid.querySelector('.profile-card-quickconnect')) {
-            var manageCard = grid.querySelector('.profile-card-manage');
-            if (manageCard) {
-                grid.insertBefore(self.createQuickConnectCard(), manageCard);
-            } else {
-                grid.appendChild(self.createQuickConnectCard());
-            }
-            self.setupNavigation();
+        var qcBtn = document.getElementById('manualQuickConnectBtn');
+        var qcDivider = document.getElementById('manualQuickConnectDivider');
+        if (qcBtn) {
+            qcBtn.style.display = enabled ? 'block' : 'none';
+        }
+        if (qcDivider) {
+            qcDivider.style.display = enabled ? 'block' : 'none';
         }
     });
 
@@ -502,45 +498,71 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
 /**
  * Show the profile selection UI
  */
-PROFILES.prototype.showProfileSelection = function () {
+PROFILES.prototype.showProfileSelection = function (focusTarget) {
     var self = this;
     var container = document.getElementById('profileSelection');
     var grid = document.getElementById('profileGrid');
     var headerEl = container ? container.querySelector('h1') : null;
 
     if (headerEl) {
-        headerEl.textContent = this.manageMode ? 'Manage profiles' : "Who's watching?";
+        headerEl.textContent = "Who's watching?";
     }
 
     // Clear existing profiles
     grid.innerHTML = '';
 
-    // Create profile cards
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var storedAuth = this.getStoredAuth(serverId);
+
+    // Create profile columns
     this.users.forEach(function (user, index) {
+        var col = document.createElement('div');
+        col.className = 'profile-column';
+        col.dataset.userId = user.Id;
+
         var card = self.createProfileCard(user, index);
-        grid.appendChild(card);
+        col.appendChild(card);
+
+        var subActions = document.createElement('div');
+        subActions.className = 'profile-sub-actions';
+
+        var isSaved = !!(self.getUserToken(serverId, user.Id) || (storedAuth && storedAuth[user.Id]) || user._saved);
+        if (isSaved) {
+            var hasPin = !!self.getUserPin(serverId, user.Id);
+
+            var pinBtn = document.createElement('button');
+            pinBtn.type = 'button';
+            pinBtn.className = 'profile-action-btn profile-action-pin';
+            pinBtn.textContent = hasPin ? 'Manage PIN' : 'Set PIN';
+            pinBtn.onclick = function () {
+                self.manageProfile(user);
+            };
+            subActions.appendChild(pinBtn);
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'profile-action-btn profile-action-btn-danger profile-action-remove';
+            removeBtn.textContent = 'Remove user';
+            removeBtn.onclick = function () {
+                self.removeAuth(serverId, user.Id);
+                self.showProfileSelection({ colIndex: index });
+            };
+            subActions.appendChild(removeBtn);
+        }
+
+        col.appendChild(subActions);
+        grid.appendChild(col);
     });
 
-    if (this.manageMode) {
-        var doneCard = this.createDoneCard();
-        grid.appendChild(doneCard);
-    } else {
-        // Add "Add User" card for manual login
-        var addCard = this.createAddUserCard();
-        grid.appendChild(addCard);
-
-        // Add "Quick Connect" card if enabled
-        if (this.quickConnectEnabled) {
-            var quickConnectCard = this.createQuickConnectCard();
-            grid.appendChild(quickConnectCard);
-        }
-
-        // Add "Manage PINs" card if there are saved users
-        if (this.hasSavedUsers()) {
-            var manageCard = this.createManageCard();
-            grid.appendChild(manageCard);
-        }
-    }
+    // Add "Add User" card column for manual login / Quick Connect
+    var addCol = document.createElement('div');
+    addCol.className = 'profile-column';
+    var addCard = this.createAddUserCard();
+    addCol.appendChild(addCard);
+    var addSubSpacer = document.createElement('div');
+    addSubSpacer.className = 'profile-sub-actions';
+    addCol.appendChild(addSubSpacer);
+    grid.appendChild(addCol);
 
     // Show the container
     this.hideLoading();
@@ -548,14 +570,48 @@ PROFILES.prototype.showProfileSelection = function () {
     document.getElementById('busy').style.display = 'none';
     container.style.display = 'flex';
 
-    // Focus first profile
-    var firstCard = grid.querySelector('.profile-card');
-    if (firstCard) {
-        firstCard.focus();
-    }
-
     // Set up keyboard navigation
     this.setupNavigation();
+
+    // Focus requested target or first profile card
+    var focused = false;
+    if (focusTarget) {
+        if (focusTarget.userId) {
+            var cols = grid.querySelectorAll('.profile-column');
+            for (var i = 0; i < cols.length; i++) {
+                if (cols[i].dataset.userId === focusTarget.userId) {
+                    var targetEl = focusTarget.target === 'pin'
+                        ? cols[i].querySelector('.profile-action-pin')
+                        : cols[i].querySelector('.profile-card');
+                    if (!targetEl) {
+                        targetEl = cols[i].querySelector('.profile-card');
+                    }
+                    if (targetEl) {
+                        targetEl.focus();
+                        focused = true;
+                    }
+                    break;
+                }
+            }
+        } else if (typeof focusTarget.colIndex === 'number') {
+            var allCols = grid.querySelectorAll('.profile-column');
+            if (allCols.length > 0) {
+                var idx = Math.max(0, Math.min(focusTarget.colIndex, allCols.length - 1));
+                var cardInCol = allCols[idx].querySelector('.profile-card');
+                if (cardInCol) {
+                    cardInCol.focus();
+                    focused = true;
+                }
+            }
+        }
+    }
+
+    if (!focused) {
+        var firstCard = grid.querySelector('.profile-card');
+        if (firstCard) {
+            firstCard.focus();
+        }
+    }
 };
 
 /**
@@ -672,86 +728,11 @@ PROFILES.prototype.createAddUserCard = function () {
 };
 
 /**
- * Create "Manage PINs" card
- */
-PROFILES.prototype.createManageCard = function () {
-    var self = this;
-    var card = document.createElement('div');
-    card.className = 'profile-card profile-card-manage';
-    card.tabIndex = this.users.length + 2;
-
-    var icon = document.createElement('div');
-    icon.className = 'profile-avatar profile-avatar-placeholder';
-    icon.innerHTML = '&#9881;';
-    card.appendChild(icon);
-
-    var name = document.createElement('div');
-    name.className = 'profile-name';
-    name.textContent = 'Manage PINs';
-    card.appendChild(name);
-
-    var enterManage = function () {
-        self.manageMode = true;
-        self.showProfileSelection();
-    };
-
-    card.onclick = enterManage;
-    card.onkeydown = function (e) {
-        if (e.keyCode === 13 || e.keyCode === 32) {
-            e.preventDefault();
-            enterManage();
-        }
-    };
-
-    return card;
-};
-
-/**
- * Create "Done" card for exiting manage mode
- */
-PROFILES.prototype.createDoneCard = function () {
-    var self = this;
-    var card = document.createElement('div');
-    card.className = 'profile-card profile-card-manage';
-    card.tabIndex = this.users.length;
-
-    var icon = document.createElement('div');
-    icon.className = 'profile-avatar profile-avatar-placeholder';
-    icon.innerHTML = '&#10003;';
-    card.appendChild(icon);
-
-    var name = document.createElement('div');
-    name.className = 'profile-name';
-    name.textContent = 'Done';
-    card.appendChild(name);
-
-    var exitManage = function () {
-        self.manageMode = false;
-        self.showProfileSelection();
-    };
-
-    card.onclick = exitManage;
-    card.onkeydown = function (e) {
-        if (e.keyCode === 13 || e.keyCode === 32) {
-            e.preventDefault();
-            exitManage();
-        }
-    };
-
-    return card;
-};
-
-/**
  * Handle profile selection
  */
 PROFILES.prototype.selectProfile = function (user) {
     var self = this;
     this.selectedUser = user;
-
-    if (this.manageMode) {
-        this.manageProfile(user);
-        return;
-    }
 
     var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
     var storedPin = this.getUserPin(serverId, user.Id);
@@ -771,7 +752,7 @@ PROFILES.prototype.selectProfile = function (user) {
                 }
             },
             onCancel: function () {
-                self.showProfileSelection();
+                self.showProfileSelection({ userId: user.Id, target: 'card' });
             }
         });
         return;
@@ -827,53 +808,15 @@ PROFILES.prototype.proceedSelectProfile = function (user) {
 };
 
 /**
- * Manage PIN / profile in manage mode
+ * Manage PIN for a saved user profile
  */
 PROFILES.prototype.manageProfile = function (user) {
     var self = this;
     var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
-    var storedToken = this.getUserToken(serverId, user.Id);
-
-    if (!storedToken) {
-        this.showError('Sign in first to set a PIN');
-        return;
-    }
-
     var existingPin = this.getUserPin(serverId, user.Id);
 
-    var openManagePad = function () {
-        var hasPinNow = !!self.getUserPin(serverId, user.Id);
-        self.showNumericPin({
-            title: 'Change PIN for ' + user.Name,
-            subtitle: 'Enter a new 4-digit PIN',
-            mode: 'manage',
-            buttons: {
-                remove: hasPinNow,
-                forget: true,
-                cancel: true
-            },
-            onComplete: function (newPin) {
-                self.setUserPin(serverId, user.Id, newPin);
-                self.hideNumericPin();
-                self.showProfileSelection();
-            },
-            onRemove: function () {
-                self.clearUserPin(serverId, user.Id);
-                self.hideNumericPin();
-                self.showProfileSelection();
-            },
-            onForget: function () {
-                self.removeAuth(serverId, user.Id);
-                self.hideNumericPin();
-                if (!self.hasSavedUsers()) {
-                    self.manageMode = false;
-                }
-                self.showProfileSelection();
-            },
-            onCancel: function () {
-                self.showProfileSelection();
-            }
-        });
+    var refocusPinBtn = function () {
+        self.showProfileSelection({ userId: user.Id, target: 'pin' });
     };
 
     if (existingPin) {
@@ -885,17 +828,53 @@ PROFILES.prototype.manageProfile = function (user) {
             onComplete: function (enteredPin) {
                 if (enteredPin === existingPin) {
                     self.hideNumericPin();
-                    openManagePad();
+                    self.showNumericPin({
+                        title: 'Change PIN for ' + user.Name,
+                        subtitle: 'Enter a new 4-digit PIN',
+                        mode: 'manage',
+                        buttons: {
+                            remove: true,
+                            cancel: true
+                        },
+                        onComplete: function (newPin) {
+                            self.setUserPin(serverId, user.Id, newPin);
+                            self.hideNumericPin();
+                            refocusPinBtn();
+                        },
+                        onRemove: function () {
+                            self.clearUserPin(serverId, user.Id);
+                            self.hideNumericPin();
+                            refocusPinBtn();
+                        },
+                        onCancel: function () {
+                            refocusPinBtn();
+                        }
+                    });
                 } else {
                     self.numPinShowError('Incorrect PIN');
                 }
             },
             onCancel: function () {
-                self.showProfileSelection();
+                refocusPinBtn();
             }
         });
     } else {
-        openManagePad();
+        this.showNumericPin({
+            title: 'Set PIN for ' + user.Name,
+            subtitle: 'Enter a 4-digit PIN',
+            mode: 'set',
+            buttons: {
+                cancel: true
+            },
+            onComplete: function (newPin) {
+                self.setUserPin(serverId, user.Id, newPin);
+                self.hideNumericPin();
+                refocusPinBtn();
+            },
+            onCancel: function () {
+                refocusPinBtn();
+            }
+        });
     }
 };
 
@@ -1045,11 +1024,28 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
     var usernameInput = document.getElementById('manualUsername');
     var passwordInput = document.getElementById('manualPassword');
     var error = document.getElementById('manualLoginError');
+    var qcBtn = document.getElementById('manualQuickConnectBtn');
+    var qcDivider = document.getElementById('manualQuickConnectDivider');
+    var buttonsContainer = overlay ? overlay.querySelector('.manual-login-buttons') : null;
+    var actionBtns = buttonsContainer ? buttonsContainer.querySelectorAll('button') : [];
+    var signInBtn = actionBtns.length > 0 ? actionBtns[0] : null;
+    var cancelBtn = actionBtns.length > 1 ? actionBtns[1] : null;
 
     if (this._manualLoginKeyHandler) {
         usernameInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         this._manualLoginKeyHandler = null;
+    }
+    if (this._manualOverlayKeyHandler && overlay) {
+        overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
+        this._manualOverlayKeyHandler = null;
+    }
+
+    if (qcBtn) {
+        qcBtn.style.display = this.quickConnectEnabled ? 'block' : 'none';
+    }
+    if (qcDivider) {
+        qcDivider.style.display = this.quickConnectEnabled ? 'block' : 'none';
     }
 
     usernameInput.value = typeof prefillUsername === 'string' ? prefillUsername : '';
@@ -1063,15 +1059,70 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
     }
 
     this._manualLoginKeyHandler = function (e) {
-        if (e.keyCode === 13) { // Enter
+        if (e.keyCode === 13) { // Enter on inputs submits
+            e.preventDefault();
             self.submitManualLogin();
-        } else if (e.keyCode === 461 || e.keyCode === 27) { // Back or Escape
+        }
+    };
+
+    this._manualOverlayKeyHandler = function (e) {
+        var code = e.keyCode || e.which;
+        var active = document.activeElement;
+        var qcVisible = !!(qcBtn && qcBtn.style.display !== 'none');
+
+        if (code === 461 || code === 27) { // Back or Escape
+            e.preventDefault();
+            e.stopPropagation();
             self.hideManualLogin();
+            return;
+        }
+
+        if (code === 38) { // Up
+            e.preventDefault();
+            e.stopPropagation();
+            if (active === passwordInput) {
+                usernameInput.focus();
+            } else if (active === signInBtn || active === cancelBtn) {
+                passwordInput.focus();
+            } else if (active === qcBtn) {
+                if (signInBtn) signInBtn.focus();
+            } else if (active !== usernameInput) {
+                usernameInput.focus();
+            }
+        } else if (code === 40) { // Down
+            e.preventDefault();
+            e.stopPropagation();
+            if (active === usernameInput) {
+                passwordInput.focus();
+            } else if (active === passwordInput) {
+                if (signInBtn) signInBtn.focus();
+            } else if (active === signInBtn || active === cancelBtn) {
+                if (qcVisible) {
+                    qcBtn.focus();
+                } else if (active === signInBtn && cancelBtn) {
+                    cancelBtn.focus();
+                }
+            } else if (active !== qcBtn) {
+                usernameInput.focus();
+            }
+        } else if (code === 37) { // Left
+            if (active === cancelBtn && signInBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                signInBtn.focus();
+            }
+        } else if (code === 39) { // Right
+            if (active === signInBtn && cancelBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                cancelBtn.focus();
+            }
         }
     };
 
     usernameInput.addEventListener('keydown', this._manualLoginKeyHandler);
     passwordInput.addEventListener('keydown', this._manualLoginKeyHandler);
+    overlay.addEventListener('keydown', this._manualOverlayKeyHandler);
 };
 
 /**
@@ -1088,6 +1139,10 @@ PROFILES.prototype.hideManualLogin = function () {
         usernameInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         this._manualLoginKeyHandler = null;
+    }
+    if (this._manualOverlayKeyHandler && overlay) {
+        overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
+        this._manualOverlayKeyHandler = null;
     }
 
     var cards = document.querySelectorAll('.profile-card');
@@ -1495,55 +1550,113 @@ PROFILES.prototype.hideNumericPin = function () {
  * Set up keyboard/remote navigation
  */
 PROFILES.prototype.setupNavigation = function () {
+    var self = this;
+    var container = document.getElementById('profileSelection');
     var grid = document.getElementById('profileGrid');
-    var cards = grid.querySelectorAll('.profile-card');
-    var cardArray = Array.prototype.slice.call(cards);
+    var backBtn = document.getElementById('profileBackBtn');
+    if (!container || !grid) return;
 
-    grid.onkeydown = function (e) {
-        var numPinOverlay = document.getElementById('numericPinOverlay');
-        if (numPinOverlay && numPinOverlay.style.display === 'flex') return;
+    grid.onkeydown = null;
 
-        var currentIndex = cardArray.indexOf(document.activeElement);
-        if (currentIndex === -1) return;
+    var isOverlayOpen = function () {
+        var ids = ['numericPinOverlay', 'manualLoginOverlay', 'quickConnectOverlay', 'pinOverlay'];
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (el && el.style.display === 'flex') {
+                return true;
+            }
+        }
+        return false;
+    };
 
-        var newIndex = currentIndex;
-        var columns = Math.floor(grid.offsetWidth / 200); // Approximate cards per row
+    container.onkeydown = function (e) {
+        if (isOverlayOpen()) return;
 
-        switch (e.keyCode) {
-            case 37: // Left
-                newIndex = Math.max(0, currentIndex - 1);
-                break;
-            case 39: // Right
-                newIndex = Math.min(cardArray.length - 1, currentIndex + 1);
-                break;
-            case 38: // Up
-                newIndex = Math.max(0, currentIndex - columns);
-                break;
-            case 40: // Down
-                newIndex = Math.min(cardArray.length - 1, currentIndex + columns);
-                break;
-            case 461: // Back button
-                e.preventDefault();
-                profiles.goBack();
-                return;
+        var code = e.keyCode || e.which;
+
+        if (code === 461 || code === 27) {
+            e.preventDefault();
+            self.goBack();
+            return;
         }
 
-        if (newIndex !== currentIndex) {
+        if (code < 37 || code > 40) return;
+
+        var colEls = Array.prototype.slice.call(grid.querySelectorAll('.profile-column'));
+        var columns = [];
+        for (var c = 0; c < colEls.length; c++) {
+            var focusables = Array.prototype.slice.call(
+                colEls[c].querySelectorAll('.profile-card, .profile-action-btn')
+            );
+            if (focusables.length > 0) {
+                columns.push(focusables);
+            }
+        }
+
+        if (columns.length === 0) return;
+
+        var active = document.activeElement;
+
+        if (active === backBtn) {
+            if (code === 40) { // Down from Back button -> first card
+                e.preventDefault();
+                columns[0][0].focus();
+            }
+            return;
+        }
+
+        var colIdx = -1;
+        var rowIdx = -1;
+        for (var i = 0; i < columns.length; i++) {
+            var r = columns[i].indexOf(active);
+            if (r !== -1) {
+                colIdx = i;
+                rowIdx = r;
+                break;
+            }
+        }
+
+        if (colIdx === -1) {
             e.preventDefault();
-            cardArray[newIndex].focus();
+            columns[0][0].focus();
+            return;
+        }
+
+        if (code === 37) { // Left
+            if (colIdx > 0) {
+                var prevCol = columns[colIdx - 1];
+                var targetRowL = Math.min(rowIdx, prevCol.length - 1);
+                e.preventDefault();
+                prevCol[targetRowL].focus();
+            }
+        } else if (code === 39) { // Right
+            if (colIdx < columns.length - 1) {
+                var nextCol = columns[colIdx + 1];
+                var targetRowR = Math.min(rowIdx, nextCol.length - 1);
+                e.preventDefault();
+                nextCol[targetRowR].focus();
+            }
+        } else if (code === 38) { // Up
+            if (rowIdx > 0) {
+                e.preventDefault();
+                columns[colIdx][rowIdx - 1].focus();
+            } else if (rowIdx === 0 && backBtn && backBtn.offsetParent !== null) {
+                e.preventDefault();
+                backBtn.focus();
+            }
+        } else if (code === 40) { // Down
+            if (rowIdx < columns[colIdx].length - 1) {
+                e.preventDefault();
+                columns[colIdx][rowIdx + 1].focus();
+            }
         }
     };
 };
 
 /**
- * Go back to server selection (or exit manage mode)
+ * Go back to server selection
  */
 PROFILES.prototype.goBack = function () {
-    if (this.manageMode) {
-        this.manageMode = false;
-        this.showProfileSelection();
-        return;
-    }
     this.stopQuickConnectPolling();
     this.hideQuickConnect();
     this.hideNumericPin();
@@ -1727,39 +1840,6 @@ PROFILES.prototype.authenticateWithQuickConnect = function (callback, errorCallb
 };
 
 /**
- * Create Quick Connect card
- */
-PROFILES.prototype.createQuickConnectCard = function () {
-    var self = this;
-    var card = document.createElement('div');
-    card.className = 'profile-card profile-card-quickconnect';
-    card.tabIndex = this.users.length + 1;
-
-    var icon = document.createElement('div');
-    icon.className = 'profile-avatar profile-avatar-placeholder';
-    icon.innerHTML = '&#128279;'; // Link icon
-    card.appendChild(icon);
-
-    var name = document.createElement('div');
-    name.className = 'profile-name';
-    name.textContent = 'Quick Connect';
-    card.appendChild(name);
-
-    card.onclick = function () {
-        self.showQuickConnect();
-    };
-
-    card.onkeydown = function (e) {
-        if (e.keyCode === 13 || e.keyCode === 32) {
-            e.preventDefault();
-            self.showQuickConnect();
-        }
-    };
-
-    return card;
-};
-
-/**
  * Show Quick Connect overlay
  */
 PROFILES.prototype.showQuickConnect = function () {
@@ -1768,12 +1848,25 @@ PROFILES.prototype.showQuickConnect = function () {
     var codeDisplay = document.getElementById('quickConnectCode');
     var status = document.getElementById('quickConnectStatus');
     var error = document.getElementById('quickConnectError');
+    var cancelBtn = overlay ? overlay.querySelector('.quickconnect-buttons button') : null;
 
     // Reset state
     codeDisplay.textContent = '------';
     status.textContent = 'Generating code...';
     error.style.display = 'none';
     overlay.style.display = 'flex';
+    if (cancelBtn) {
+        cancelBtn.focus();
+    }
+
+    overlay.onkeydown = function (e) {
+        var code = e.keyCode || e.which;
+        if (code === 461 || code === 27) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.hideQuickConnect();
+        }
+    };
 
     // Initiate Quick Connect
     this.initiateQuickConnect(function (response) {
@@ -1794,6 +1887,7 @@ PROFILES.prototype.hideQuickConnect = function () {
     var overlay = document.getElementById('quickConnectOverlay');
     if (overlay) {
         overlay.style.display = 'none';
+        overlay.onkeydown = null;
     }
     this.stopQuickConnectPolling();
     this.quickConnectSecret = null;

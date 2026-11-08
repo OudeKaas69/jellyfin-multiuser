@@ -37,6 +37,53 @@
     padding: 1rem;
 }
 
+.profile-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    width: 180px;
+}
+
+.profile-sub-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 4.5rem;
+}
+
+.profile-action-btn {
+    width: 100%;
+    margin: 0;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background-color: #222;
+    color: #ddd;
+    border: 2px solid transparent;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.profile-action-btn:hover,
+.profile-action-btn:focus {
+    border-color: #00A4DC;
+    background-color: #00A4DC;
+    color: #fff;
+    outline: none;
+}
+
+.profile-action-btn-danger:hover,
+.profile-action-btn-danger:focus {
+    background-color: #c62828;
+    border-color: #ff8a80;
+    color: #fff;
+}
+
 .profile-card {
     display: flex;
     flex-direction: column;
@@ -50,6 +97,7 @@
     outline: none;
     border: 3px solid transparent;
     position: relative;
+    box-sizing: border-box;
 }
 
 .profile-card:hover,
@@ -248,6 +296,8 @@
 
 .pin-buttons button,
 .manual-login-buttons button {
+    width: auto;
+    margin: 0;
     padding: 0.75rem 2rem;
     font-size: 1rem;
     border: none;
@@ -274,6 +324,35 @@
     outline-offset: 2px;
 }
 
+.manual-qc-divider {
+    color: #888;
+    font-size: 0.9rem;
+    margin-top: 0.75rem;
+}
+
+.manual-qc-btn {
+    width: 100%;
+    margin: 0.75rem 0 0 0;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    background-color: #292929;
+    color: #ddd;
+    border: 2px solid #444;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.manual-qc-btn:hover,
+.manual-qc-btn:focus {
+    outline: none;
+    border-color: #00A4DC;
+    background-color: #333;
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(0, 164, 220, 0.35);
+}
+
 .pin-hint {
     font-size: 0.9rem;
     color: #888;
@@ -285,12 +364,17 @@
     position: absolute;
     top: 2rem;
     left: 2rem;
+    width: auto;
+    margin: 0;
     padding: 0.75rem 1.5rem;
     background-color: #292929;
     border: none;
     border-radius: 0.3rem;
     color: #fff;
     font-size: 1rem;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -299,20 +383,6 @@
 #profileBackBtn:focus {
     background-color: #00A4DC;
     outline: none;
-}
-
-/* Quick Connect Card */
-.profile-card-quickconnect .profile-avatar-placeholder,
-.profile-card-manage .profile-avatar-placeholder {
-    font-size: 2.5rem;
-    color: #666;
-}
-
-.profile-card-quickconnect:hover .profile-avatar-placeholder,
-.profile-card-quickconnect:focus .profile-avatar-placeholder,
-.profile-card-manage:hover .profile-avatar-placeholder,
-.profile-card-manage:focus .profile-avatar-placeholder {
-    color: #00A4DC;
 }
 
 /* Quick Connect Overlay */
@@ -396,6 +466,8 @@
 }
 
 .quickconnect-buttons button {
+    width: auto;
+    margin: 0;
     padding: 0.75rem 2rem;
     font-size: 1rem;
     border: none;
@@ -502,6 +574,7 @@
 .num-pin-key {
     width: 88px;
     height: 64px;
+    margin: 0;
     font-size: 1.6rem;
     font-weight: 500;
     color: #fff;
@@ -540,6 +613,8 @@
 }
 
 .num-pin-action {
+    width: auto;
+    margin: 0;
     padding: 0.65rem 1.25rem;
     font-size: 0.95rem;
     border: 2px solid transparent;
@@ -573,6 +648,10 @@
 
 /* Responsive adjustments */
 @media (max-width: 1280px) {
+    .profile-column {
+        width: 150px;
+    }
+
     .profile-card {
         width: 150px;
         padding: 1rem 0.75rem;
