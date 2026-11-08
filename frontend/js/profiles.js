@@ -662,7 +662,7 @@ PROFILES.prototype.createProfileCard = function (user, index) {
     if (user.HasPassword || hasPin) {
         var lock = document.createElement('div');
         lock.className = 'profile-lock';
-        lock.innerHTML = '&#128274;';
+        lock.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
         card.appendChild(lock);
     }
 
@@ -931,6 +931,31 @@ PROFILES.prototype.authenticateWithoutPassword = function (user) {
 };
 
 /**
+ * Lock an input so focusing it does not auto-open webOS virtual keyboard
+ */
+PROFILES.prototype.lockInput = function (input) {
+    if (!input) return;
+    input.readOnly = true;
+    input.setAttribute('readonly', 'readonly');
+};
+
+/**
+ * Unlock an input and re-focus it so webOS virtual keyboard opens
+ */
+PROFILES.prototype.unlockInput = function (input) {
+    if (!input) return;
+    input.readOnly = false;
+    input.removeAttribute('readonly');
+    try {
+        input.blur();
+        input.focus();
+        if (typeof input.click === 'function') {
+            input.click();
+        }
+    } catch (e) {}
+};
+
+/**
  * Show PIN/Password entry overlay
  */
 PROFILES.prototype.showPinEntry = function (user) {
@@ -939,23 +964,117 @@ PROFILES.prototype.showPinEntry = function (user) {
     var input = document.getElementById('pinInput');
     var userName = document.getElementById('pinUserName');
     var error = document.getElementById('pinError');
+    var buttonsContainer = overlay ? overlay.querySelector('.pin-buttons') : null;
+    var actionBtns = buttonsContainer ? buttonsContainer.querySelectorAll('button') : [];
+    var signInBtn = actionBtns.length > 0 ? actionBtns[0] : null;
+    var cancelBtn = actionBtns.length > 1 ? actionBtns[1] : null;
+
+    if (this._pinKeyHandler) {
+        input.removeEventListener('keydown', this._pinKeyHandler);
+        this._pinKeyHandler = null;
+    }
+    if (this._pinBlurHandler) {
+        input.removeEventListener('blur', this._pinBlurHandler);
+        this._pinBlurHandler = null;
+    }
+    if (this._pinClickHandler) {
+        input.removeEventListener('click', this._pinClickHandler);
+        this._pinClickHandler = null;
+    }
+    if (this._pinOverlayKeyHandler && overlay) {
+        overlay.removeEventListener('keydown', this._pinOverlayKeyHandler);
+        this._pinOverlayKeyHandler = null;
+    }
 
     userName.textContent = user.Name;
     input.value = '';
     error.style.display = 'none';
+    this.lockInput(input);
     overlay.style.display = 'flex';
     input.focus();
+
+    this._pinBlurHandler = function () {
+        self.lockInput(input);
+    };
+    this._pinClickHandler = function () {
+        if (input.readOnly) {
+            self.unlockInput(input);
+        }
+    };
 
     // Store current handler references for cleanup
     this._pinKeyHandler = function (e) {
         if (e.keyCode === 13) { // Enter
-            self.submitPin();
+            e.preventDefault();
+            e.stopPropagation();
+            if (input.readOnly) {
+                self.unlockInput(input);
+            } else {
+                self.lockInput(input);
+                self.submitPin();
+            }
         } else if (e.keyCode === 461 || e.keyCode === 27) { // Back or Escape
+            e.preventDefault();
+            e.stopPropagation();
             self.hidePinEntry();
         }
     };
 
+    this._pinOverlayKeyHandler = function (e) {
+        var code = e.keyCode || e.which;
+        var active = document.activeElement;
+
+        if (code === 461 || code === 27) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.hidePinEntry();
+            return;
+        }
+
+        if (code < 37 || code > 40) return;
+
+        e.stopPropagation();
+
+        if (code === 38) { // Up
+            e.preventDefault();
+            if (active === input) {
+                self.lockInput(input);
+            } else {
+                self.lockInput(input);
+                input.focus();
+            }
+        } else if (code === 40) { // Down
+            e.preventDefault();
+            if (active === input) {
+                self.lockInput(input);
+                if (signInBtn) signInBtn.focus();
+            } else if (active !== signInBtn && active !== cancelBtn) {
+                self.lockInput(input);
+                input.focus();
+            }
+        } else if (code === 37) { // Left
+            if (active === cancelBtn && signInBtn) {
+                e.preventDefault();
+                signInBtn.focus();
+            } else if (active !== input || input.readOnly) {
+                e.preventDefault();
+            }
+        } else if (code === 39) { // Right
+            if (active === signInBtn && cancelBtn) {
+                e.preventDefault();
+                cancelBtn.focus();
+            } else if (active !== input || input.readOnly) {
+                e.preventDefault();
+            }
+        }
+    };
+
+    input.addEventListener('blur', this._pinBlurHandler);
+    input.addEventListener('click', this._pinClickHandler);
     input.addEventListener('keydown', this._pinKeyHandler);
+    if (overlay) {
+        overlay.addEventListener('keydown', this._pinOverlayKeyHandler);
+    }
 };
 
 /**
@@ -965,12 +1084,25 @@ PROFILES.prototype.hidePinEntry = function () {
     var overlay = document.getElementById('pinOverlay');
     var input = document.getElementById('pinInput');
 
+    this.lockInput(input);
     overlay.style.display = 'none';
     input.value = '';
 
     if (this._pinKeyHandler) {
         input.removeEventListener('keydown', this._pinKeyHandler);
         this._pinKeyHandler = null;
+    }
+    if (this._pinBlurHandler) {
+        input.removeEventListener('blur', this._pinBlurHandler);
+        this._pinBlurHandler = null;
+    }
+    if (this._pinClickHandler) {
+        input.removeEventListener('click', this._pinClickHandler);
+        this._pinClickHandler = null;
+    }
+    if (this._pinOverlayKeyHandler && overlay) {
+        overlay.removeEventListener('keydown', this._pinOverlayKeyHandler);
+        this._pinOverlayKeyHandler = null;
     }
 
     // Refocus on the selected profile card
@@ -993,6 +1125,7 @@ PROFILES.prototype.submitPin = function () {
         return;
     }
 
+    this.lockInput(input);
     error.style.display = 'none';
     this.showLoading();
 
@@ -1010,6 +1143,7 @@ PROFILES.prototype.submitPin = function () {
             error.textContent = errMsg;
             error.style.display = 'block';
             input.value = '';
+            self.lockInput(input);
             input.focus();
         }
     );
@@ -1036,6 +1170,22 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
         passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         this._manualLoginKeyHandler = null;
     }
+    if (this._manualUsernameBlurHandler) {
+        usernameInput.removeEventListener('blur', this._manualUsernameBlurHandler);
+        this._manualUsernameBlurHandler = null;
+    }
+    if (this._manualPasswordBlurHandler) {
+        passwordInput.removeEventListener('blur', this._manualPasswordBlurHandler);
+        this._manualPasswordBlurHandler = null;
+    }
+    if (this._manualUsernameClickHandler) {
+        usernameInput.removeEventListener('click', this._manualUsernameClickHandler);
+        this._manualUsernameClickHandler = null;
+    }
+    if (this._manualPasswordClickHandler) {
+        passwordInput.removeEventListener('click', this._manualPasswordClickHandler);
+        this._manualPasswordClickHandler = null;
+    }
     if (this._manualOverlayKeyHandler && overlay) {
         overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
         this._manualOverlayKeyHandler = null;
@@ -1051,6 +1201,10 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
     usernameInput.value = typeof prefillUsername === 'string' ? prefillUsername : '';
     passwordInput.value = '';
     error.style.display = 'none';
+
+    this.lockInput(usernameInput);
+    this.lockInput(passwordInput);
+
     overlay.style.display = 'flex';
     if (usernameInput.value) {
         passwordInput.focus();
@@ -1058,10 +1212,39 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
         usernameInput.focus();
     }
 
+    this._manualUsernameBlurHandler = function () {
+        self.lockInput(usernameInput);
+    };
+    this._manualPasswordBlurHandler = function () {
+        self.lockInput(passwordInput);
+    };
+    this._manualUsernameClickHandler = function () {
+        if (usernameInput.readOnly) {
+            self.unlockInput(usernameInput);
+        }
+    };
+    this._manualPasswordClickHandler = function () {
+        if (passwordInput.readOnly) {
+            self.unlockInput(passwordInput);
+        }
+    };
+
     this._manualLoginKeyHandler = function (e) {
-        if (e.keyCode === 13) { // Enter on inputs submits
+        if (e.keyCode === 13) { // Enter on inputs
             e.preventDefault();
-            self.submitManualLogin();
+            e.stopPropagation();
+            var target = e.currentTarget || e.target;
+            if (target.readOnly) {
+                self.unlockInput(target);
+            } else if (target === usernameInput) {
+                self.lockInput(usernameInput);
+                self.lockInput(passwordInput);
+                passwordInput.focus();
+                self.unlockInput(passwordInput);
+            } else if (target === passwordInput) {
+                self.lockInput(passwordInput);
+                self.submitManualLogin();
+            }
         }
     };
 
@@ -1077,22 +1260,35 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
             return;
         }
 
+        if (code < 37 || code > 40) return;
+
+        // Always stop propagation for arrows inside manual overlay so document.onkeydown never runs
+        e.stopPropagation();
+
         if (code === 38) { // Up
             e.preventDefault();
-            e.stopPropagation();
+            if (active === usernameInput || active === passwordInput) {
+                self.lockInput(active);
+            }
             if (active === passwordInput) {
+                self.lockInput(usernameInput);
                 usernameInput.focus();
             } else if (active === signInBtn || active === cancelBtn) {
+                self.lockInput(passwordInput);
                 passwordInput.focus();
             } else if (active === qcBtn) {
                 if (signInBtn) signInBtn.focus();
             } else if (active !== usernameInput) {
+                self.lockInput(usernameInput);
                 usernameInput.focus();
             }
         } else if (code === 40) { // Down
             e.preventDefault();
-            e.stopPropagation();
+            if (active === usernameInput || active === passwordInput) {
+                self.lockInput(active);
+            }
             if (active === usernameInput) {
+                self.lockInput(passwordInput);
                 passwordInput.focus();
             } else if (active === passwordInput) {
                 if (signInBtn) signInBtn.focus();
@@ -1103,23 +1299,30 @@ PROFILES.prototype.showManualLogin = function (prefillUsername) {
                     cancelBtn.focus();
                 }
             } else if (active !== qcBtn) {
+                self.lockInput(usernameInput);
                 usernameInput.focus();
             }
         } else if (code === 37) { // Left
             if (active === cancelBtn && signInBtn) {
                 e.preventDefault();
-                e.stopPropagation();
                 signInBtn.focus();
+            } else if ((active !== usernameInput && active !== passwordInput) || active.readOnly) {
+                e.preventDefault();
             }
         } else if (code === 39) { // Right
             if (active === signInBtn && cancelBtn) {
                 e.preventDefault();
-                e.stopPropagation();
                 cancelBtn.focus();
+            } else if ((active !== usernameInput && active !== passwordInput) || active.readOnly) {
+                e.preventDefault();
             }
         }
     };
 
+    usernameInput.addEventListener('blur', this._manualUsernameBlurHandler);
+    passwordInput.addEventListener('blur', this._manualPasswordBlurHandler);
+    usernameInput.addEventListener('click', this._manualUsernameClickHandler);
+    passwordInput.addEventListener('click', this._manualPasswordClickHandler);
     usernameInput.addEventListener('keydown', this._manualLoginKeyHandler);
     passwordInput.addEventListener('keydown', this._manualLoginKeyHandler);
     overlay.addEventListener('keydown', this._manualOverlayKeyHandler);
@@ -1133,12 +1336,31 @@ PROFILES.prototype.hideManualLogin = function () {
     var usernameInput = document.getElementById('manualUsername');
     var passwordInput = document.getElementById('manualPassword');
 
+    this.lockInput(usernameInput);
+    this.lockInput(passwordInput);
+
     overlay.style.display = 'none';
 
     if (this._manualLoginKeyHandler) {
         usernameInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
         this._manualLoginKeyHandler = null;
+    }
+    if (this._manualUsernameBlurHandler) {
+        usernameInput.removeEventListener('blur', this._manualUsernameBlurHandler);
+        this._manualUsernameBlurHandler = null;
+    }
+    if (this._manualPasswordBlurHandler) {
+        passwordInput.removeEventListener('blur', this._manualPasswordBlurHandler);
+        this._manualPasswordBlurHandler = null;
+    }
+    if (this._manualUsernameClickHandler) {
+        usernameInput.removeEventListener('click', this._manualUsernameClickHandler);
+        this._manualUsernameClickHandler = null;
+    }
+    if (this._manualPasswordClickHandler) {
+        passwordInput.removeEventListener('click', this._manualPasswordClickHandler);
+        this._manualPasswordClickHandler = null;
     }
     if (this._manualOverlayKeyHandler && overlay) {
         overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
@@ -1162,9 +1384,13 @@ PROFILES.prototype.submitManualLogin = function () {
     var username = usernameInput.value.trim();
     var password = passwordInput.value;
 
+    this.lockInput(usernameInput);
+    this.lockInput(passwordInput);
+
     if (!username) {
         error.textContent = 'Please enter a username';
         error.style.display = 'block';
+        usernameInput.focus();
         return;
     }
 
@@ -1185,6 +1411,7 @@ PROFILES.prototype.submitManualLogin = function () {
             error.textContent = errMsg;
             error.style.display = 'block';
             passwordInput.value = '';
+            self.lockInput(passwordInput);
             passwordInput.focus();
         }
     );
@@ -1576,11 +1803,15 @@ PROFILES.prototype.setupNavigation = function () {
 
         if (code === 461 || code === 27) {
             e.preventDefault();
+            e.stopPropagation();
             self.goBack();
             return;
         }
 
         if (code < 37 || code > 40) return;
+
+        e.preventDefault();
+        e.stopPropagation();
 
         var colEls = Array.prototype.slice.call(grid.querySelectorAll('.profile-column'));
         var columns = [];
@@ -1599,7 +1830,6 @@ PROFILES.prototype.setupNavigation = function () {
 
         if (active === backBtn) {
             if (code === 40) { // Down from Back button -> first card
-                e.preventDefault();
                 columns[0][0].focus();
             }
             return;
@@ -1617,7 +1847,6 @@ PROFILES.prototype.setupNavigation = function () {
         }
 
         if (colIdx === -1) {
-            e.preventDefault();
             columns[0][0].focus();
             return;
         }
@@ -1626,27 +1855,22 @@ PROFILES.prototype.setupNavigation = function () {
             if (colIdx > 0) {
                 var prevCol = columns[colIdx - 1];
                 var targetRowL = Math.min(rowIdx, prevCol.length - 1);
-                e.preventDefault();
                 prevCol[targetRowL].focus();
             }
         } else if (code === 39) { // Right
             if (colIdx < columns.length - 1) {
                 var nextCol = columns[colIdx + 1];
                 var targetRowR = Math.min(rowIdx, nextCol.length - 1);
-                e.preventDefault();
                 nextCol[targetRowR].focus();
             }
         } else if (code === 38) { // Up
             if (rowIdx > 0) {
-                e.preventDefault();
                 columns[colIdx][rowIdx - 1].focus();
             } else if (rowIdx === 0 && backBtn && backBtn.offsetParent !== null) {
-                e.preventDefault();
                 backBtn.focus();
             }
         } else if (code === 40) { // Down
             if (rowIdx < columns[colIdx].length - 1) {
-                e.preventDefault();
                 columns[colIdx][rowIdx + 1].focus();
             }
         }

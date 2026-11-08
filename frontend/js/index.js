@@ -91,29 +91,63 @@ function rightArrowPressed() {
     // Your stuff here
 }
 
+function isElementDisplayed(el) {
+    if (!el) return false;
+    if (el.style && el.style.display === 'flex') return true;
+    if (el.style && el.style.display === 'none') return false;
+    if (window.getComputedStyle) {
+        var disp = window.getComputedStyle(el).display;
+        return disp !== 'none' && disp !== '';
+    }
+    return isVisible(el);
+}
+
+function isAnyProfileOrOverlayDisplayed() {
+    var profileSelection = document.getElementById('profileSelection');
+    var numericPinOverlay = document.getElementById('numericPinOverlay');
+    var manualLoginOverlay = document.getElementById('manualLoginOverlay');
+    var quickConnectOverlay = document.getElementById('quickConnectOverlay');
+    var pinOverlay = document.getElementById('pinOverlay');
+
+    return isElementDisplayed(profileSelection) ||
+        isElementDisplayed(numericPinOverlay) ||
+        isElementDisplayed(manualLoginOverlay) ||
+        isElementDisplayed(quickConnectOverlay) ||
+        isElementDisplayed(pinOverlay);
+}
+
 function backPressed() {
     // Check if profile selection or overlays are visible
     var profileSelection = document.getElementById('profileSelection');
+    var numericPinOverlay = document.getElementById('numericPinOverlay');
     var pinOverlay = document.getElementById('pinOverlay');
     var manualLoginOverlay = document.getElementById('manualLoginOverlay');
     var quickConnectOverlay = document.getElementById('quickConnectOverlay');
 
-    if (quickConnectOverlay && quickConnectOverlay.style.display !== 'none') {
+    if (numericPinOverlay && numericPinOverlay.style.display === 'flex') {
+        profiles.hideNumericPin();
+        if (profileSelection) {
+            profiles.showProfileSelection();
+        }
+        return;
+    }
+
+    if (quickConnectOverlay && quickConnectOverlay.style.display === 'flex') {
         profiles.hideQuickConnect();
         return;
     }
 
-    if (pinOverlay && pinOverlay.style.display !== 'none') {
+    if (pinOverlay && pinOverlay.style.display === 'flex') {
         profiles.hidePinEntry();
         return;
     }
 
-    if (manualLoginOverlay && manualLoginOverlay.style.display !== 'none') {
+    if (manualLoginOverlay && manualLoginOverlay.style.display === 'flex') {
         profiles.hideManualLogin();
         return;
     }
 
-    if (profileSelection && profileSelection.style.display !== 'none') {
+    if (profileSelection && profileSelection.style.display === 'flex') {
         profiles.goBack();
         return;
     }
@@ -123,18 +157,29 @@ function backPressed() {
 
 document.onkeydown = function (evt) {
     evt = evt || window.event;
+    var container = document.querySelector('.container');
+    var canNavigateServerScreen = container && isVisible(container) && !isAnyProfileOrOverlayDisplayed();
+
     switch (evt.keyCode) {
         case 37:
-            leftArrowPressed();
+            if (canNavigateServerScreen) {
+                leftArrowPressed();
+            }
             break;
         case 39:
-            rightArrowPressed();
+            if (canNavigateServerScreen) {
+                rightArrowPressed();
+            }
             break;
         case 38:
-            upArrowPressed();
+            if (canNavigateServerScreen) {
+                upArrowPressed();
+            }
             break;
         case 40:
-            downArrowPressed();
+            if (canNavigateServerScreen) {
+                downArrowPressed();
+            }
             break;
         case 461: // Back
             backPressed();
