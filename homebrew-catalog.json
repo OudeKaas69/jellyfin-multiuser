@@ -1,0 +1,24 @@
+{
+  "apps": [
+    {
+      "id": "org.jellyfin.webos",
+      "title": "Jellyfin",
+      "description": "A webOS client to connect to a Jellyfin Server instance and stream media.",
+      "version": "2.0.0",
+      "icon": "https://forgejo.timsas.nl/tsas/jellyfin-webos/raw/branch/master/frontend/assets/icon-80.png",
+      "splashIcon": "https://forgejo.timsas.nl/tsas/jellyfin-webos/raw/branch/master/frontend/assets/icon-130.png",
+      "type": "app",
+      "sourceUrl": "https://forgejo.timsas.nl/tsas/jellyfin-webos",
+      "manifest": "https://forgejo.timsas.nl/tsas/jellyfin-webos/raw/branch/master/manifest.json",
+      "ipkUrl": "https://forgejo.timsas.nl/tsas/jellyfin-webos/raw/branch/master/releases/org.jellyfin.webos_2.0.0_all.ipk",
+      "author": "Jellyfin Project",
+      "license": "MPL-2.0",
+      "homepage": "https://jellyfin.org/",
+      "supportUrl": "https://jellyfin.org/docs/general/clients/web/",
+      "category": "media",
+      "tags": ["media", "streaming", "jellyfin", "video", "music"],
+      "requiredACG": ["device", "application.launcher", "media-server"],
+      "screenshotUrl": "https://forgejo.timsas.nl/tsas/jellyfin-webos/raw/branch/master/frontend/assets/splash.png"
+    }
+  ]
+}
