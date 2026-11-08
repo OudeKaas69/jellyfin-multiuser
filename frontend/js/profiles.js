@@ -934,7 +934,7 @@ PROFILES.prototype.authenticateWithoutPassword = function (user) {
  * Lock an input so focusing it does not auto-open webOS virtual keyboard
  */
 PROFILES.prototype.lockInput = function (input) {
-    if (!input) return;
+    if (!input || input._jfUnlocking) return;
     input.readOnly = true;
     input.setAttribute('readonly', 'readonly');
 };
@@ -946,13 +946,24 @@ PROFILES.prototype.unlockInput = function (input) {
     if (!input) return;
     input.readOnly = false;
     input.removeAttribute('readonly');
+    // Guard against blur listeners re-locking the input while we refocus it
+    input._jfUnlocking = true;
     try {
         input.blur();
-        input.focus();
-        if (typeof input.click === 'function') {
-            input.click();
-        }
     } catch (e) {}
+    setTimeout(function () {
+        try {
+            input.readOnly = false;
+            input.removeAttribute('readonly');
+            input.focus();
+            if (typeof input.click === 'function') {
+                input.click();
+            }
+        } catch (e) {}
+        setTimeout(function () {
+            input._jfUnlocking = false;
+        }, 100);
+    }, 30);
 };
 
 /**
