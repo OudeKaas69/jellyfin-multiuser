@@ -979,13 +979,16 @@ function getSwitchUserInjectionScript() {
         '                    if (logoutEl && logoutEl.parentNode) {' +
         '                        var pBtn = document.createElement("a");' +
         '                        pBtn.id = "jf-switch-user-prefs-btn";' +
-        '                        pBtn.setAttribute("is", "emby-linkbutton");' +
-        '                        pBtn.className = "emby-button listItem-border show-focus";' +
+        '                        var baseCls = (typeof logoutEl.className === "string" && logoutEl.className) ? logoutEl.className.replace(/\\bbtnLogout\\b/g, "").replace(/\\s+/g, " ").trim() : "emby-button listItem-border show-focus";' +
+        '                        if (baseCls.indexOf("listItem-border") === -1) { baseCls += " listItem-border"; }' +
+        '                        if (baseCls.indexOf("emby-button") === -1) { baseCls += " emby-button"; }' +
+        '                        if (baseCls.indexOf("show-focus") === -1 && document.documentElement.className.indexOf("layout-tv") !== -1) { baseCls += " show-focus"; }' +
+        '                        pBtn.className = baseCls + " jf-switch-user-prefs";' +
         '                        pBtn.href = "#";' +
-        '                        pBtn.setAttribute("style", "display:block;margin:0;padding:0");' +
+        '                        pBtn.setAttribute("style", logoutEl.getAttribute("style") || "display:block;margin:0;padding:0");' +
         '                        pBtn.innerHTML = "<div class=\'listItem\'><span class=\'material-icons listItemIcon listItemIcon-transparent\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span><div class=\'listItemBody\'><div class=\'listItemBodyText\'>Switch User</div></div></div>";' +
         '                        bindActivate(pBtn);' +
-        '                        logoutEl.parentNode.insertBefore(pBtn, logoutEl);' +
+        '                        logoutEl.parentNode.appendChild(pBtn);' +
         '                    }' +
         '                }' +
         '            }' +

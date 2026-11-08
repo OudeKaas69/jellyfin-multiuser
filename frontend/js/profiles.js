@@ -609,6 +609,12 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
 
         var isSaved = !!(self.getUserToken(serverId, user.Id) || (storedAuth && storedAuth[user.Id]) || user._saved);
         if (isSaved) {
+            col.className = 'profile-column has-actions';
+            var trayTitle = document.createElement('div');
+            trayTitle.className = 'profile-sub-actions-title';
+            trayTitle.textContent = 'Options for ' + user.Name;
+            subActions.appendChild(trayTitle);
+
             var hasPin = !!self.getUserPin(serverId, user.Id);
 
             if (!hasPin) {
@@ -662,6 +668,31 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
     addCol.appendChild(addSubSpacer);
     grid.appendChild(addCol);
 
+    var setSelectedColumn = function (colEl) {
+        var allColumnEls = grid.querySelectorAll('.profile-column');
+        for (var j = 0; j < allColumnEls.length; j++) {
+            if (allColumnEls[j] === colEl) {
+                allColumnEls[j].classList.add('is-selected');
+            } else {
+                allColumnEls[j].classList.remove('is-selected');
+            }
+        }
+    };
+
+    if (!grid._jfFocusBound) {
+        grid.addEventListener('focus', function (e) {
+            var node = e.target;
+            while (node && node !== grid) {
+                if (node.classList && node.classList.contains('profile-column')) {
+                    setSelectedColumn(node);
+                    return;
+                }
+                node = node.parentNode;
+            }
+        }, true);
+        grid._jfFocusBound = true;
+    }
+
     // Show the container
     this.hideLoading();
     document.querySelector('.container').style.display = 'none';
@@ -673,11 +704,14 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
 
     // Focus requested target or first profile card
     var focused = false;
+    var selectedCol = null;
     if (focusTarget) {
         if (focusTarget.userId) {
             var cols = grid.querySelectorAll('.profile-column');
             for (var i = 0; i < cols.length; i++) {
                 if (cols[i].dataset.userId === focusTarget.userId) {
+                    selectedCol = cols[i];
+                    setSelectedColumn(selectedCol);
                     var targetEl = null;
                     if (focusTarget.target === 'pin') {
                         targetEl = cols[i].querySelector('.profile-action-pin');
@@ -700,6 +734,8 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
             var allCols = grid.querySelectorAll('.profile-column');
             if (allCols.length > 0) {
                 var idx = Math.max(0, Math.min(focusTarget.colIndex, allCols.length - 1));
+                selectedCol = allCols[idx];
+                setSelectedColumn(selectedCol);
                 var cardInCol = allCols[idx].querySelector('.profile-card');
                 if (cardInCol) {
                     cardInCol.focus();
@@ -710,9 +746,13 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
     }
 
     if (!focused) {
-        var firstCard = grid.querySelector('.profile-card');
-        if (firstCard) {
-            firstCard.focus();
+        var firstCol = grid.querySelector('.profile-column');
+        if (firstCol) {
+            setSelectedColumn(firstCol);
+            var firstCard = firstCol.querySelector('.profile-card');
+            if (firstCard) {
+                firstCard.focus();
+            }
         }
     }
 };
@@ -1992,8 +2032,10 @@ PROFILES.prototype.setupNavigation = function () {
         var colEls = Array.prototype.slice.call(grid.querySelectorAll('.profile-column'));
         var columns = [];
         for (var c = 0; c < colEls.length; c++) {
+            var isSelected = colEls[c].classList && colEls[c].classList.contains('is-selected');
+            var selector = isSelected ? '.profile-card, .profile-action-btn' : '.profile-card';
             var focusables = Array.prototype.slice.call(
-                colEls[c].querySelectorAll('.profile-card, .profile-action-btn')
+                colEls[c].querySelectorAll(selector)
             );
             if (focusables.length > 0) {
                 columns.push(focusables);
@@ -2029,15 +2071,11 @@ PROFILES.prototype.setupNavigation = function () {
 
         if (code === 37) { // Left
             if (colIdx > 0) {
-                var prevCol = columns[colIdx - 1];
-                var targetRowL = Math.min(rowIdx, prevCol.length - 1);
-                prevCol[targetRowL].focus();
+                columns[colIdx - 1][0].focus();
             }
         } else if (code === 39) { // Right
             if (colIdx < columns.length - 1) {
-                var nextCol = columns[colIdx + 1];
-                var targetRowR = Math.min(rowIdx, nextCol.length - 1);
-                nextCol[targetRowR].focus();
+                columns[colIdx + 1][0].focus();
             }
         } else if (code === 38) { // Up
             if (rowIdx > 0) {
