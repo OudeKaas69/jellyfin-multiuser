@@ -107,6 +107,42 @@
 		</div>
 	</div>
 
+	<!-- Numeric PIN Pad Overlay -->
+	<div id="numericPinOverlay">
+		<div class="num-pin-container">
+			<h2 id="numPinTitle">Enter PIN</h2>
+			<div id="numPinSubtitle"></div>
+			<div id="numPinDots">
+				<span class="num-pin-dot"></span>
+				<span class="num-pin-dot"></span>
+				<span class="num-pin-dot"></span>
+				<span class="num-pin-dot"></span>
+			</div>
+			<div id="numPinError"></div>
+			<div id="numPinPad">
+				<button type="button" class="num-pin-key" data-key="1">1</button>
+				<button type="button" class="num-pin-key" data-key="2">2</button>
+				<button type="button" class="num-pin-key" data-key="3">3</button>
+				<button type="button" class="num-pin-key" data-key="4">4</button>
+				<button type="button" class="num-pin-key" data-key="5">5</button>
+				<button type="button" class="num-pin-key" data-key="6">6</button>
+				<button type="button" class="num-pin-key" data-key="7">7</button>
+				<button type="button" class="num-pin-key" data-key="8">8</button>
+				<button type="button" class="num-pin-key" data-key="9">9</button>
+				<button type="button" class="num-pin-key num-pin-key-fn" data-key="clear">C</button>
+				<button type="button" class="num-pin-key" data-key="0">0</button>
+				<button type="button" class="num-pin-key num-pin-key-fn" data-key="back">&#9003;</button>
+			</div>
+			<div id="numPinActions">
+				<button type="button" id="numPinSkip" class="num-pin-action">Skip / No PIN</button>
+				<button type="button" id="numPinRemove" class="num-pin-action num-pin-action-danger">Remove PIN</button>
+				<button type="button" id="numPinForget" class="num-pin-action num-pin-action-danger">Forget profile</button>
+				<button type="button" id="numPinCancel" class="num-pin-action">Cancel</button>
+			</div>
+			<div class="pin-hint">Use remote numbers or D-pad &bull; Back to cancel</div>
+		</div>
+	</div>
+
 	<iframe id="contentFrame" style="display: none;"></iframe>
 </body>
 

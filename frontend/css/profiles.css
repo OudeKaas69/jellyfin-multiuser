@@ -302,13 +302,16 @@
 }
 
 /* Quick Connect Card */
-.profile-card-quickconnect .profile-avatar-placeholder {
+.profile-card-quickconnect .profile-avatar-placeholder,
+.profile-card-manage .profile-avatar-placeholder {
     font-size: 2.5rem;
     color: #666;
 }
 
 .profile-card-quickconnect:hover .profile-avatar-placeholder,
-.profile-card-quickconnect:focus .profile-avatar-placeholder {
+.profile-card-quickconnect:focus .profile-avatar-placeholder,
+.profile-card-manage:hover .profile-avatar-placeholder,
+.profile-card-manage:focus .profile-avatar-placeholder {
     color: #00A4DC;
 }
 
@@ -407,6 +410,165 @@
 .quickconnect-buttons button:focus {
     background-color: #00A4DC;
     outline: none;
+}
+
+/* Numeric PIN Pad Overlay */
+#numericPinOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(16, 16, 16, 0.96);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+.num-pin-container {
+    background-color: #1a1a1a;
+    padding: 2rem 2.5rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    min-width: 380px;
+    max-width: 90%;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+}
+
+#numPinTitle {
+    font-size: 1.6rem;
+    margin: 0 0 0.4rem 0;
+    color: #fff;
+    font-weight: 400;
+}
+
+#numPinSubtitle {
+    font-size: 1rem;
+    color: #00A4DC;
+    margin-bottom: 1.25rem;
+    min-height: 1.2rem;
+}
+
+#numPinDots {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.num-pin-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    background-color: transparent;
+    transition: all 0.15s ease;
+}
+
+.num-pin-dot.filled {
+    background-color: #00A4DC;
+    border-color: #00A4DC;
+    transform: scale(1.1);
+}
+
+@keyframes numPinShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+}
+
+#numPinDots.shake {
+    animation: numPinShake 0.35s ease;
+}
+
+#numPinError {
+    color: #ef5350;
+    font-size: 0.95rem;
+    min-height: 1.2rem;
+    margin-bottom: 0.75rem;
+    display: none;
+}
+
+#numPinPad {
+    display: grid;
+    grid-template-columns: repeat(3, 88px);
+    grid-gap: 0.75rem;
+    justify-content: center;
+    margin: 0.5rem auto 1.25rem auto;
+}
+
+.num-pin-key {
+    width: 88px;
+    height: 64px;
+    font-size: 1.6rem;
+    font-weight: 500;
+    color: #fff;
+    background-color: #292929;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.num-pin-key-fn {
+    font-size: 1.25rem;
+    color: #bbb;
+    background-color: #222;
+}
+
+.num-pin-key:hover,
+.num-pin-key:focus {
+    background-color: #333;
+    border-color: #00A4DC;
+    box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.35);
+    color: #fff;
+    transform: scale(1.04);
+}
+
+#numPinActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 0.5rem;
+}
+
+.num-pin-action {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.95rem;
+    border: 2px solid transparent;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    background-color: #333;
+    color: #fff;
+    transition: all 0.15s ease;
+    outline: none;
+}
+
+.num-pin-action-danger {
+    background-color: #4a1f1f;
+    color: #ffcdd2;
+}
+
+.num-pin-action:hover,
+.num-pin-action:focus {
+    border-color: #00A4DC;
+    box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.35);
+    background-color: #00A4DC;
+    color: #fff;
+}
+
+.num-pin-action-danger:hover,
+.num-pin-action-danger:focus {
+    background-color: #c62828;
+    border-color: #ff8a80;
+    color: #fff;
 }
 
 /* Responsive adjustments */

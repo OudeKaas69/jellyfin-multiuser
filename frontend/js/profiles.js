@@ -17,6 +17,9 @@ function PROFILES() {
     this.quickConnectCode = null;
     this.quickConnectPollInterval = null;
     this.quickConnectEnabled = false;
+    this.manageMode = false;
+    this._numPinKeyHandler = null;
+    this._numPinState = null;
 }
 
 /**
@@ -69,7 +72,7 @@ PROFILES.prototype.getStoredAuth = function (serverId) {
 };
 
 /**
- * Store auth data for a user on a server
+ * Store auth data for a user on a server (preserves existing PIN and skip state)
  */
 PROFILES.prototype.storeAuth = function (serverId, userId, token, userName, primaryImageTag, hasPassword) {
     var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
@@ -77,18 +80,40 @@ PROFILES.prototype.storeAuth = function (serverId, userId, token, userName, prim
     var key = this.getAuthStorageKey(targetServerId);
     var authData = this.getStoredAuth(targetServerId);
     var existing = authData[userId] || {};
-    authData[userId] = {
+    var entry = {
         token: token,
         userName: userName || existing.userName,
         primaryImageTag: primaryImageTag !== undefined ? primaryImageTag : (existing.primaryImageTag || null),
         hasPassword: hasPassword !== undefined ? !!hasPassword : !!existing.hasPassword,
         timestamp: Date.now()
     };
+    if (existing.pin) {
+        entry.pin = existing.pin;
+    }
+    if (existing.pinPromptSkipped) {
+        entry.pinPromptSkipped = true;
+    }
+    authData[userId] = entry;
     storage.set(key, authData);
 };
 
 /**
- * Remove auth data for a user
+ * Clear only the stored token for a user (used when token is invalid; preserves PIN)
+ */
+PROFILES.prototype.clearToken = function (serverId, userId) {
+    var ids = this.getCandidateServerIds(serverId);
+    for (var i = 0; i < ids.length; i++) {
+        var key = this.getAuthStorageKey(ids[i]);
+        var data = storage.get(key);
+        if (data && typeof data === 'object' && data[userId]) {
+            delete data[userId].token;
+            storage.set(key, data);
+        }
+    }
+};
+
+/**
+ * Remove all auth data (including PIN) for a user (forget profile)
  */
 PROFILES.prototype.removeAuth = function (serverId, userId) {
     var ids = this.getCandidateServerIds(serverId);
@@ -100,6 +125,107 @@ PROFILES.prototype.removeAuth = function (serverId, userId) {
             storage.set(key, data);
         }
     }
+    if (Array.isArray(this.users)) {
+        this.users = this.users.filter(function (u) {
+            return !(u && u.Id === userId && u._saved);
+        });
+    }
+};
+
+/**
+ * Get stored 4-digit PIN for a user, or null if not set
+ */
+PROFILES.prototype.getUserPin = function (serverId, userId) {
+    var authData = this.getStoredAuth(serverId);
+    if (authData[userId] && typeof authData[userId].pin === 'string' && authData[userId].pin.length === 4) {
+        return authData[userId].pin;
+    }
+    return null;
+};
+
+/**
+ * Set 4-digit PIN for a user
+ */
+PROFILES.prototype.setUserPin = function (serverId, userId, pin) {
+    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
+    if (!targetServerId || !userId) return;
+    var cleanPin = (pin && typeof pin === 'string') ? pin : String(pin || '');
+    var ids = this.getCandidateServerIds(targetServerId);
+    var authData = this.getStoredAuth(targetServerId);
+    var existing = authData[userId] || {};
+    existing.pin = cleanPin;
+    authData[userId] = existing;
+    storage.set(this.getAuthStorageKey(targetServerId), authData);
+
+    for (var i = 0; i < ids.length; i++) {
+        var key = this.getAuthStorageKey(ids[i]);
+        var data = storage.get(key);
+        if (data && typeof data === 'object' && data[userId]) {
+            data[userId].pin = cleanPin;
+            storage.set(key, data);
+        }
+    }
+};
+
+/**
+ * Clear PIN for a user
+ */
+PROFILES.prototype.clearUserPin = function (serverId, userId) {
+    var ids = this.getCandidateServerIds(serverId);
+    for (var i = 0; i < ids.length; i++) {
+        var key = this.getAuthStorageKey(ids[i]);
+        var data = storage.get(key);
+        if (data && typeof data === 'object' && data[userId]) {
+            delete data[userId].pin;
+            storage.set(key, data);
+        }
+    }
+};
+
+/**
+ * Check if initial PIN prompt was skipped for a user
+ */
+PROFILES.prototype.isPinPromptSkipped = function (serverId, userId) {
+    var authData = this.getStoredAuth(serverId);
+    return !!(authData[userId] && authData[userId].pinPromptSkipped);
+};
+
+/**
+ * Mark initial PIN prompt as skipped for a user
+ */
+PROFILES.prototype.setPinPromptSkipped = function (serverId, userId, skipped) {
+    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
+    if (!targetServerId || !userId) return;
+    var ids = this.getCandidateServerIds(targetServerId);
+    var authData = this.getStoredAuth(targetServerId);
+    var existing = authData[userId] || {};
+    existing.pinPromptSkipped = !!skipped;
+    authData[userId] = existing;
+    storage.set(this.getAuthStorageKey(targetServerId), authData);
+
+    for (var i = 0; i < ids.length; i++) {
+        var key = this.getAuthStorageKey(ids[i]);
+        var data = storage.get(key);
+        if (data && typeof data === 'object' && data[userId]) {
+            data[userId].pinPromptSkipped = !!skipped;
+            storage.set(key, data);
+        }
+    }
+};
+
+/**
+ * Check if any user on the current server has a stored token
+ */
+PROFILES.prototype.hasSavedUsers = function () {
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var authData = this.getStoredAuth(serverId);
+    var userIds = Object.keys(authData);
+    for (var i = 0; i < userIds.length; i++) {
+        if (authData[userIds[i]] && authData[userIds[i]].token) {
+            return true;
+        }
+    }
+    return false;
 };
 
 /**
@@ -302,6 +428,7 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
     }
     this.currentServer = serverInfo;
     this.onComplete = onComplete;
+    this.manageMode = false;
     options = options || {};
 
     // Check if Quick Connect is enabled on server
@@ -309,8 +436,13 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
         self.quickConnectEnabled = enabled;
         var container = document.getElementById('profileSelection');
         var grid = document.getElementById('profileGrid');
-        if (enabled && container && container.style.display === 'flex' && grid && !grid.querySelector('.profile-card-quickconnect')) {
-            grid.appendChild(self.createQuickConnectCard());
+        if (enabled && !self.manageMode && container && container.style.display === 'flex' && grid && !grid.querySelector('.profile-card-quickconnect')) {
+            var manageCard = grid.querySelector('.profile-card-manage');
+            if (manageCard) {
+                grid.insertBefore(self.createQuickConnectCard(), manageCard);
+            } else {
+                grid.appendChild(self.createQuickConnectCard());
+            }
             self.setupNavigation();
         }
     });
@@ -342,8 +474,8 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
                     );
                     self.onComplete(validUser, validToken);
                 }, function () {
-                    // Token invalid, remove it and show selection
-                    self.removeAuth(serverInfo.id, user.Id);
+                    // Token invalid, clear token (keep PIN) and show selection
+                    self.clearToken(serverInfo.id, user.Id);
                     self.showProfileSelection();
                 });
             } else if (!user.HasPassword && !user._saved) {
@@ -374,6 +506,11 @@ PROFILES.prototype.showProfileSelection = function () {
     var self = this;
     var container = document.getElementById('profileSelection');
     var grid = document.getElementById('profileGrid');
+    var headerEl = container ? container.querySelector('h1') : null;
+
+    if (headerEl) {
+        headerEl.textContent = this.manageMode ? 'Manage profiles' : "Who's watching?";
+    }
 
     // Clear existing profiles
     grid.innerHTML = '';
@@ -384,14 +521,25 @@ PROFILES.prototype.showProfileSelection = function () {
         grid.appendChild(card);
     });
 
-    // Add "Add User" card for manual login
-    var addCard = this.createAddUserCard();
-    grid.appendChild(addCard);
+    if (this.manageMode) {
+        var doneCard = this.createDoneCard();
+        grid.appendChild(doneCard);
+    } else {
+        // Add "Add User" card for manual login
+        var addCard = this.createAddUserCard();
+        grid.appendChild(addCard);
 
-    // Add "Quick Connect" card if enabled
-    if (this.quickConnectEnabled) {
-        var quickConnectCard = this.createQuickConnectCard();
-        grid.appendChild(quickConnectCard);
+        // Add "Quick Connect" card if enabled
+        if (this.quickConnectEnabled) {
+            var quickConnectCard = this.createQuickConnectCard();
+            grid.appendChild(quickConnectCard);
+        }
+
+        // Add "Manage PINs" card if there are saved users
+        if (this.hasSavedUsers()) {
+            var manageCard = this.createManageCard();
+            grid.appendChild(manageCard);
+        }
     }
 
     // Show the container
@@ -450,17 +598,25 @@ PROFILES.prototype.createProfileCard = function (user, index) {
     name.textContent = user.Name;
     card.appendChild(name);
 
-    // Lock icon for password-protected users
-    if (user.HasPassword) {
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var hasPin = !!this.getUserPin(serverId, user.Id);
+    var storedToken = this.getUserToken(serverId, user.Id);
+
+    // Lock icon for password-protected or PIN-protected users (single icon)
+    if (user.HasPassword || hasPin) {
         var lock = document.createElement('div');
         lock.className = 'profile-lock';
         lock.innerHTML = '&#128274;';
         card.appendChild(lock);
     }
 
-    // Stored token indicator
-    var storedToken = this.getUserToken(this.currentServer.id, user.Id);
-    if (storedToken) {
+    // Stored PIN / token indicator
+    if (hasPin) {
+        var pinProtected = document.createElement('div');
+        pinProtected.className = 'profile-remembered';
+        pinProtected.textContent = 'PIN protected';
+        card.appendChild(pinProtected);
+    } else if (storedToken) {
         var remembered = document.createElement('div');
         remembered.className = 'profile-remembered';
         remembered.textContent = 'Remembered';
@@ -516,11 +672,119 @@ PROFILES.prototype.createAddUserCard = function () {
 };
 
 /**
+ * Create "Manage PINs" card
+ */
+PROFILES.prototype.createManageCard = function () {
+    var self = this;
+    var card = document.createElement('div');
+    card.className = 'profile-card profile-card-manage';
+    card.tabIndex = this.users.length + 2;
+
+    var icon = document.createElement('div');
+    icon.className = 'profile-avatar profile-avatar-placeholder';
+    icon.innerHTML = '&#9881;';
+    card.appendChild(icon);
+
+    var name = document.createElement('div');
+    name.className = 'profile-name';
+    name.textContent = 'Manage PINs';
+    card.appendChild(name);
+
+    var enterManage = function () {
+        self.manageMode = true;
+        self.showProfileSelection();
+    };
+
+    card.onclick = enterManage;
+    card.onkeydown = function (e) {
+        if (e.keyCode === 13 || e.keyCode === 32) {
+            e.preventDefault();
+            enterManage();
+        }
+    };
+
+    return card;
+};
+
+/**
+ * Create "Done" card for exiting manage mode
+ */
+PROFILES.prototype.createDoneCard = function () {
+    var self = this;
+    var card = document.createElement('div');
+    card.className = 'profile-card profile-card-manage';
+    card.tabIndex = this.users.length;
+
+    var icon = document.createElement('div');
+    icon.className = 'profile-avatar profile-avatar-placeholder';
+    icon.innerHTML = '&#10003;';
+    card.appendChild(icon);
+
+    var name = document.createElement('div');
+    name.className = 'profile-name';
+    name.textContent = 'Done';
+    card.appendChild(name);
+
+    var exitManage = function () {
+        self.manageMode = false;
+        self.showProfileSelection();
+    };
+
+    card.onclick = exitManage;
+    card.onkeydown = function (e) {
+        if (e.keyCode === 13 || e.keyCode === 32) {
+            e.preventDefault();
+            exitManage();
+        }
+    };
+
+    return card;
+};
+
+/**
  * Handle profile selection
  */
 PROFILES.prototype.selectProfile = function (user) {
     var self = this;
     this.selectedUser = user;
+
+    if (this.manageMode) {
+        this.manageProfile(user);
+        return;
+    }
+
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var storedPin = this.getUserPin(serverId, user.Id);
+
+    if (storedPin) {
+        this.showNumericPin({
+            title: 'Enter PIN',
+            subtitle: user.Name,
+            mode: 'verify',
+            buttons: { cancel: true },
+            onComplete: function (enteredPin) {
+                if (enteredPin === storedPin) {
+                    self.hideNumericPin();
+                    self.proceedSelectProfile(user);
+                } else {
+                    self.numPinShowError('Incorrect PIN');
+                }
+            },
+            onCancel: function () {
+                self.showProfileSelection();
+            }
+        });
+        return;
+    }
+
+    this.proceedSelectProfile(user);
+};
+
+/**
+ * Continue profile selection after PIN verification (or when no PIN is set)
+ */
+PROFILES.prototype.proceedSelectProfile = function (user) {
+    var self = this;
 
     // Check for stored token first
     var storedToken = this.getUserToken(this.currentServer.id, user.Id);
@@ -540,8 +804,8 @@ PROFILES.prototype.selectProfile = function (user) {
             self.onComplete(validUser, token);
         }, function () {
             self.hideLoading();
-            // Token invalid, remove and prompt for password / manual login
-            self.removeAuth(self.currentServer.id, user.Id);
+            // Token invalid, clear token (preserve PIN) and prompt for password / manual login
+            self.clearToken(self.currentServer.id, user.Id);
             if (user._saved) {
                 self.showManualLogin(user.Name);
             } else if (user.HasPassword) {
@@ -563,6 +827,116 @@ PROFILES.prototype.selectProfile = function (user) {
 };
 
 /**
+ * Manage PIN / profile in manage mode
+ */
+PROFILES.prototype.manageProfile = function (user) {
+    var self = this;
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var storedToken = this.getUserToken(serverId, user.Id);
+
+    if (!storedToken) {
+        this.showError('Sign in first to set a PIN');
+        return;
+    }
+
+    var existingPin = this.getUserPin(serverId, user.Id);
+
+    var openManagePad = function () {
+        var hasPinNow = !!self.getUserPin(serverId, user.Id);
+        self.showNumericPin({
+            title: 'Change PIN for ' + user.Name,
+            subtitle: 'Enter a new 4-digit PIN',
+            mode: 'manage',
+            buttons: {
+                remove: hasPinNow,
+                forget: true,
+                cancel: true
+            },
+            onComplete: function (newPin) {
+                self.setUserPin(serverId, user.Id, newPin);
+                self.hideNumericPin();
+                self.showProfileSelection();
+            },
+            onRemove: function () {
+                self.clearUserPin(serverId, user.Id);
+                self.hideNumericPin();
+                self.showProfileSelection();
+            },
+            onForget: function () {
+                self.removeAuth(serverId, user.Id);
+                self.hideNumericPin();
+                if (!self.hasSavedUsers()) {
+                    self.manageMode = false;
+                }
+                self.showProfileSelection();
+            },
+            onCancel: function () {
+                self.showProfileSelection();
+            }
+        });
+    };
+
+    if (existingPin) {
+        this.showNumericPin({
+            title: 'Enter PIN',
+            subtitle: user.Name,
+            mode: 'verify',
+            buttons: { cancel: true },
+            onComplete: function (enteredPin) {
+                if (enteredPin === existingPin) {
+                    self.hideNumericPin();
+                    openManagePad();
+                } else {
+                    self.numPinShowError('Incorrect PIN');
+                }
+            },
+            onCancel: function () {
+                self.showProfileSelection();
+            }
+        });
+    } else {
+        openManagePad();
+    }
+};
+
+/**
+ * Central post-login handler for fresh authentications
+ */
+PROFILES.prototype.finishLogin = function (user, token) {
+    var self = this;
+    this.hideLoading();
+    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
+    var userId = user && user.Id;
+    var existingPin = userId ? this.getUserPin(serverId, userId) : null;
+    var skipped = userId ? this.isPinPromptSkipped(serverId, userId) : false;
+
+    if (userId && !existingPin && !skipped) {
+        this.showNumericPin({
+            title: 'Set a PIN for ' + (user.Name || 'this profile') + '?',
+            subtitle: '4-digit PIN to protect this profile on this TV',
+            mode: 'set',
+            buttons: { skip: true },
+            onComplete: function (pin) {
+                self.setUserPin(serverId, userId, pin);
+                self.hideNumericPin();
+                self.hideProfileSelection();
+                self.onComplete(user, token);
+            },
+            onSkip: function () {
+                self.setPinPromptSkipped(serverId, userId, true);
+                self.hideNumericPin();
+                self.hideProfileSelection();
+                self.onComplete(user, token);
+            }
+        });
+        return;
+    }
+
+    this.hideProfileSelection();
+    this.onComplete(user, token);
+};
+
+/**
  * Authenticate user without password
  */
 PROFILES.prototype.authenticateWithoutPassword = function (user) {
@@ -570,8 +944,7 @@ PROFILES.prototype.authenticateWithoutPassword = function (user) {
     this.showLoading();
 
     this.authenticateUser(this.currentServer.baseurl, user.Id, user.Name, '', function (response) {
-        self.hideProfileSelection();
-        self.onComplete(response.User, response.AccessToken);
+        self.finishLogin(response.User, response.AccessToken);
     }, function (error) {
         self.hideLoading();
         self.showError(error);
@@ -651,8 +1024,7 @@ PROFILES.prototype.submitPin = function () {
         password,
         function (response) {
             self.hidePinEntry();
-            self.hideProfileSelection();
-            self.onComplete(response.User, response.AccessToken);
+            self.finishLogin(response.User, response.AccessToken);
         },
         function (errMsg) {
             self.hideLoading();
@@ -751,8 +1123,7 @@ PROFILES.prototype.submitManualLogin = function () {
         password,
         function (response) {
             self.hideManualLogin();
-            self.hideProfileSelection();
-            self.onComplete(response.User, response.AccessToken);
+            self.finishLogin(response.User, response.AccessToken);
         },
         function (errMsg) {
             self.hideLoading();
@@ -798,6 +1169,329 @@ PROFILES.prototype.showError = function (message) {
 };
 
 /**
+ * Show numeric PIN pad overlay
+ */
+PROFILES.prototype.showNumericPin = function (options) {
+    var self = this;
+    options = options || {};
+    var buttons = options.buttons || {};
+    var mode = options.mode || 'verify';
+
+    this.hideNumericPin();
+
+    var overlay = document.getElementById('numericPinOverlay');
+    var titleEl = document.getElementById('numPinTitle');
+    var subtitleEl = document.getElementById('numPinSubtitle');
+    var dotsContainer = document.getElementById('numPinDots');
+    var dots = dotsContainer ? dotsContainer.querySelectorAll('.num-pin-dot') : [];
+    var errorEl = document.getElementById('numPinError');
+    var pad = document.getElementById('numPinPad');
+    var keys = pad ? Array.prototype.slice.call(pad.querySelectorAll('.num-pin-key')) : [];
+
+    var btnSkip = document.getElementById('numPinSkip');
+    var btnRemove = document.getElementById('numPinRemove');
+    var btnForget = document.getElementById('numPinForget');
+    var btnCancel = document.getElementById('numPinCancel');
+
+    var initialTitle = options.title || 'Enter PIN';
+    var initialSubtitle = options.subtitle || '';
+
+    titleEl.textContent = initialTitle;
+    subtitleEl.textContent = initialSubtitle;
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+    if (dotsContainer) {
+        dotsContainer.classList.remove('shake');
+    }
+
+    btnSkip.style.display = buttons.skip ? 'inline-block' : 'none';
+    btnRemove.style.display = buttons.remove ? 'inline-block' : 'none';
+    btnForget.style.display = buttons.forget ? 'inline-block' : 'none';
+    btnCancel.style.display = buttons.cancel ? 'inline-block' : 'none';
+
+    this._numPinState = {
+        digits: '',
+        mode: mode,
+        step: 1,
+        firstPin: '',
+        initialTitle: initialTitle,
+        initialSubtitle: initialSubtitle,
+        options: options
+    };
+
+    var updateDots = function () {
+        var len = self._numPinState ? self._numPinState.digits.length : 0;
+        for (var i = 0; i < dots.length; i++) {
+            if (i < len) {
+                dots[i].classList.add('filled');
+            } else {
+                dots[i].classList.remove('filled');
+            }
+        }
+    };
+
+    updateDots();
+
+    var handleComplete = function (enteredPin) {
+        var state = self._numPinState;
+        if (!state) return;
+
+        if (state.mode === 'set' || state.mode === 'manage') {
+            if (state.step === 1) {
+                state.firstPin = enteredPin;
+                state.step = 2;
+                state.digits = '';
+                titleEl.textContent = 'Confirm PIN';
+                subtitleEl.textContent = 'Re-enter the 4-digit PIN';
+                errorEl.style.display = 'none';
+                updateDots();
+                return;
+            }
+            if (enteredPin !== state.firstPin) {
+                state.step = 1;
+                state.firstPin = '';
+                state.digits = '';
+                titleEl.textContent = state.initialTitle;
+                subtitleEl.textContent = state.initialSubtitle;
+                self.numPinShowError('PINs did not match. Try again.');
+                return;
+            }
+        }
+
+        if (options.onComplete) {
+            options.onComplete(enteredPin);
+        }
+    };
+
+    var handleKeyInput = function (keyVal) {
+        var state = self._numPinState;
+        if (!state) return;
+
+        if (keyVal === 'clear') {
+            state.digits = '';
+            errorEl.style.display = 'none';
+            updateDots();
+            return;
+        }
+
+        if (keyVal === 'back') {
+            if (state.digits.length > 0) {
+                state.digits = state.digits.slice(0, -1);
+                updateDots();
+            }
+            return;
+        }
+
+        if (/^[0-9]$/.test(keyVal) && state.digits.length < 4) {
+            errorEl.style.display = 'none';
+            state.digits += keyVal;
+            updateDots();
+            if (state.digits.length === 4) {
+                var completedPin = state.digits;
+                setTimeout(function () {
+                    handleComplete(completedPin);
+                }, 80);
+            }
+        }
+    };
+
+    keys.forEach(function (btn) {
+        btn.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleKeyInput(btn.getAttribute('data-key'));
+        };
+    });
+
+    btnSkip.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (options.onSkip) {
+            options.onSkip();
+        } else {
+            self.hideNumericPin();
+        }
+    };
+
+    btnRemove.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (options.onRemove) {
+            options.onRemove();
+        }
+    };
+
+    btnForget.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (options.onForget) {
+            options.onForget();
+        }
+    };
+
+    btnCancel.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        self.hideNumericPin();
+        if (options.onCancel) {
+            options.onCancel();
+        }
+    };
+
+    var getVisibleActions = function () {
+        var list = [btnSkip, btnRemove, btnForget, btnCancel];
+        return list.filter(function (b) {
+            return b && b.style.display !== 'none';
+        });
+    };
+
+    this._numPinKeyHandler = function (e) {
+        if (!overlay || overlay.style.display !== 'flex') return;
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) {
+            e.stopImmediatePropagation();
+        }
+
+        var code = e.keyCode || e.which;
+
+        // Top row numbers 0-9 (48-57)
+        if (code >= 48 && code <= 57) {
+            e.preventDefault();
+            handleKeyInput(String(code - 48));
+            return;
+        }
+
+        // Numpad numbers 0-9 (96-105)
+        if (code >= 96 && code <= 105) {
+            e.preventDefault();
+            handleKeyInput(String(code - 96));
+            return;
+        }
+
+        // Backspace
+        if (code === 8) {
+            e.preventDefault();
+            handleKeyInput('back');
+            return;
+        }
+
+        // Back (461) or Escape (27)
+        if (code === 461 || code === 27) {
+            e.preventDefault();
+            if (buttons.cancel) {
+                self.hideNumericPin();
+                if (options.onCancel) {
+                    options.onCancel();
+                }
+            }
+            return;
+        }
+
+        // Enter (13) or Space (32)
+        if (code === 13 || code === 32) {
+            var active = document.activeElement;
+            if (active && overlay.contains(active) && typeof active.click === 'function') {
+                e.preventDefault();
+                active.click();
+            }
+            return;
+        }
+
+        // D-pad arrows (37-40)
+        if (code >= 37 && code <= 40) {
+            e.preventDefault();
+            var activeEl = document.activeElement;
+            var keyIdx = keys.indexOf(activeEl);
+            var visibleActions = getVisibleActions();
+            var actionIdx = visibleActions.indexOf(activeEl);
+
+            if (keyIdx !== -1) {
+                var row = Math.floor(keyIdx / 3);
+                var col = keyIdx % 3;
+                if (code === 37 && col > 0) {
+                    keys[keyIdx - 1].focus();
+                } else if (code === 39 && col < 2) {
+                    keys[keyIdx + 1].focus();
+                } else if (code === 38 && row > 0) {
+                    keys[keyIdx - 3].focus();
+                } else if (code === 40) {
+                    if (row < 3) {
+                        keys[keyIdx + 3].focus();
+                    } else if (visibleActions.length > 0) {
+                        var targetAction = Math.min(col, visibleActions.length - 1);
+                        visibleActions[targetAction].focus();
+                    }
+                }
+            } else if (actionIdx !== -1) {
+                if (code === 37 && actionIdx > 0) {
+                    visibleActions[actionIdx - 1].focus();
+                } else if (code === 39 && actionIdx < visibleActions.length - 1) {
+                    visibleActions[actionIdx + 1].focus();
+                } else if (code === 38 && keys.length >= 12) {
+                    var targetCol = Math.min(2, actionIdx);
+                    keys[9 + targetCol].focus();
+                }
+            } else if (keys.length > 0) {
+                keys[0].focus();
+            }
+        }
+    };
+
+    overlay.style.display = 'flex';
+    document.addEventListener('keydown', this._numPinKeyHandler, true);
+
+    if (keys.length > 0) {
+        keys[0].focus();
+    }
+};
+
+/**
+ * Show error on numeric PIN pad, shake dots, and clear entry
+ */
+PROFILES.prototype.numPinShowError = function (msg) {
+    var dotsContainer = document.getElementById('numPinDots');
+    var dots = dotsContainer ? dotsContainer.querySelectorAll('.num-pin-dot') : [];
+    var errorEl = document.getElementById('numPinError');
+
+    if (this._numPinState) {
+        this._numPinState.digits = '';
+    }
+
+    for (var i = 0; i < dots.length; i++) {
+        dots[i].classList.remove('filled');
+    }
+
+    if (errorEl) {
+        errorEl.textContent = msg || 'Incorrect PIN';
+        errorEl.style.display = 'block';
+    }
+
+    if (dotsContainer) {
+        dotsContainer.classList.remove('shake');
+        void dotsContainer.offsetWidth;
+        dotsContainer.classList.add('shake');
+        setTimeout(function () {
+            dotsContainer.classList.remove('shake');
+        }, 400);
+    }
+};
+
+/**
+ * Hide numeric PIN pad overlay
+ */
+PROFILES.prototype.hideNumericPin = function () {
+    var overlay = document.getElementById('numericPinOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+    if (this._numPinKeyHandler) {
+        document.removeEventListener('keydown', this._numPinKeyHandler, true);
+        this._numPinKeyHandler = null;
+    }
+    this._numPinState = null;
+};
+
+/**
  * Set up keyboard/remote navigation
  */
 PROFILES.prototype.setupNavigation = function () {
@@ -806,6 +1500,9 @@ PROFILES.prototype.setupNavigation = function () {
     var cardArray = Array.prototype.slice.call(cards);
 
     grid.onkeydown = function (e) {
+        var numPinOverlay = document.getElementById('numericPinOverlay');
+        if (numPinOverlay && numPinOverlay.style.display === 'flex') return;
+
         var currentIndex = cardArray.indexOf(document.activeElement);
         if (currentIndex === -1) return;
 
@@ -839,11 +1536,17 @@ PROFILES.prototype.setupNavigation = function () {
 };
 
 /**
- * Go back to server selection
+ * Go back to server selection (or exit manage mode)
  */
 PROFILES.prototype.goBack = function () {
+    if (this.manageMode) {
+        this.manageMode = false;
+        this.showProfileSelection();
+        return;
+    }
     this.stopQuickConnectPolling();
     this.hideQuickConnect();
+    this.hideNumericPin();
     this.hideProfileSelection();
     this.hidePinEntry();
     this.hideManualLogin();
@@ -1119,8 +1822,7 @@ PROFILES.prototype.startQuickConnectPolling = function () {
 
                 self.authenticateWithQuickConnect(function (authResponse) {
                     self.hideQuickConnect();
-                    self.hideProfileSelection();
-                    self.onComplete(authResponse.User, authResponse.AccessToken);
+                    self.finishLogin(authResponse.User, authResponse.AccessToken);
                 }, function (errMsg) {
                     var error = document.getElementById('quickConnectError');
                     error.textContent = errMsg;
