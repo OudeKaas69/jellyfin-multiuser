@@ -50,7 +50,7 @@
     flex-direction: column;
     gap: 0.4rem;
     width: 100%;
-    min-height: 4.5rem;
+    min-height: 6.8rem;
 }
 
 .profile-action-btn {
@@ -69,8 +69,15 @@
     box-sizing: border-box;
 }
 
+.profile-action-auto.is-on {
+    border-color: #00A4DC;
+    color: #00A4DC;
+}
+
 .profile-action-btn:hover,
-.profile-action-btn:focus {
+.profile-action-btn:focus,
+.profile-action-auto.is-on:hover,
+.profile-action-auto.is-on:focus {
     border-color: #00A4DC;
     background-color: #00A4DC;
     color: #fff;
@@ -644,6 +651,11 @@
     color: #fff;
     transition: all 0.15s ease;
     outline: none;
+}
+
+.num-pin-action-primary {
+    border-color: rgba(0, 164, 220, 0.65);
+    background-color: #22353f;
 }
 
 .num-pin-action-danger {

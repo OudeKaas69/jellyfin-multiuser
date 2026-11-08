@@ -11,6 +11,7 @@ var profiles = new PROFILES();
 function PROFILES() {
     this.currentServer = null;
     this.users = [];
+    this.publicUsers = [];
     this.selectedUser = null;
     this.onComplete = null;
     this.quickConnectSecret = null;
@@ -27,6 +28,42 @@ function PROFILES() {
  */
 PROFILES.prototype.getAuthStorageKey = function (serverId) {
     return 'jellyfin_auth_' + serverId;
+};
+
+/**
+ * Storage key for auto sign-in user per server
+ */
+PROFILES.prototype.getAutoSignInStorageKey = function (serverId) {
+    return 'jellyfin_autosignin_' + serverId;
+};
+
+/**
+ * Get the userId configured for auto sign-in on a server, or null
+ */
+PROFILES.prototype.getAutoSignInUser = function (serverId) {
+    var ids = this.getCandidateServerIds(serverId);
+    for (var i = 0; i < ids.length; i++) {
+        var val = storage.get(this.getAutoSignInStorageKey(ids[i]));
+        if (val && typeof val === 'string') {
+            return val;
+        }
+    }
+    return null;
+};
+
+/**
+ * Set or clear the auto sign-in userId for a server (only one user per server)
+ */
+PROFILES.prototype.setAutoSignInUser = function (serverId, userIdOrNull) {
+    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
+    if (!targetServerId) return;
+    var ids = this.getCandidateServerIds(targetServerId);
+    for (var i = 0; i < ids.length; i++) {
+        storage.remove(this.getAutoSignInStorageKey(ids[i]));
+    }
+    if (userIdOrNull && typeof userIdOrNull === 'string') {
+        storage.set(this.getAutoSignInStorageKey(targetServerId), userIdOrNull);
+    }
 };
 
 /**
@@ -130,6 +167,9 @@ PROFILES.prototype.removeAuth = function (serverId, userId) {
             return !(u && u.Id === userId && u._saved);
         });
     }
+    if (this.getAutoSignInUser(serverId) === userId) {
+        this.setAutoSignInUser(serverId, null);
+    }
 };
 
 /**
@@ -164,6 +204,10 @@ PROFILES.prototype.setUserPin = function (serverId, userId, pin) {
             data[userId].pin = cleanPin;
             storage.set(key, data);
         }
+    }
+
+    if (this.getAutoSignInUser(targetServerId) === userId) {
+        this.setAutoSignInUser(targetServerId, null);
     }
 };
 
@@ -284,6 +328,7 @@ PROFILES.prototype.fetchUsers = function (baseurl, callback, errorCallback) {
         method: 'GET',
         success: function (data) {
             if (Array.isArray(data)) {
+                self.publicUsers = data;
                 self.users = data;
                 callback(data);
             } else {
@@ -443,18 +488,49 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
         }
     });
 
-    this.fetchUsers(serverInfo.baseurl, function (users) {
-        var mergedUsers = self.getMergedUsers(users);
+    var handleUsersReady = function (mergedUsers) {
         self.users = mergedUsers;
+
+        if (options.allowAutoSignIn) {
+            var autoUserId = self.getAutoSignInUser(serverInfo.id);
+            var autoToken = autoUserId ? self.getUserToken(serverInfo.id, autoUserId) : null;
+            var autoPin = autoUserId ? self.getUserPin(serverInfo.id, autoUserId) : null;
+            if (autoUserId && autoToken && !autoPin) {
+                var knownUser = null;
+                for (var i = 0; i < mergedUsers.length; i++) {
+                    if (mergedUsers[i] && mergedUsers[i].Id === autoUserId) {
+                        knownUser = mergedUsers[i];
+                        break;
+                    }
+                }
+                self.showLoading();
+                self.validateToken(serverInfo.baseurl, autoUserId, autoToken, function (validUser, validToken) {
+                    self.hideLoading();
+                    self.storeAuth(
+                        self.currentServer.id,
+                        validUser.Id || autoUserId,
+                        validToken,
+                        validUser.Name || (knownUser && knownUser.Name),
+                        validUser.PrimaryImageTag || (knownUser && knownUser.PrimaryImageTag) || null,
+                        validUser.HasPassword
+                    );
+                    self.onComplete(validUser, validToken);
+                }, function () {
+                    self.hideLoading();
+                    self.clearToken(serverInfo.id, autoUserId);
+                    self.setAutoSignInUser(serverInfo.id, null);
+                    self.showProfileSelection();
+                });
+                return;
+            }
+        }
 
         if (mergedUsers.length === 0) {
             self.showProfileSelection();
             return;
         }
 
-        // If caller requests forcing the profile selection (e.g. autoconnect should still show profiles),
-        // bypass the automatic-auth path and show the selection UI.
-        if (!options.forceShowSelection && !self.shouldShowProfileSelection()) {
+        if (options.legacyAuto && !options.forceShowSelection && !self.shouldShowProfileSelection()) {
             // Single user without password or with valid token
             var user = mergedUsers[0];
             var token = self.getUserToken(serverInfo.id, user.Id);
@@ -479,7 +555,6 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
                 self.authenticateUser(serverInfo.baseurl, user.Id, user.Name, '', function (response) {
                     self.onComplete(response.User, response.AccessToken);
                 }, function () {
-                    // If forceShowSelection is true, show selection instead of auto-auth
                     self.showProfileSelection();
                 });
             } else {
@@ -488,10 +563,15 @@ PROFILES.prototype.init = function (serverInfo, onComplete, options) {
         } else {
             self.showProfileSelection();
         }
+    };
+
+    this.fetchUsers(serverInfo.baseurl, function (users) {
+        var mergedUsers = self.getMergedUsers(users);
+        handleUsersReady(mergedUsers);
     }, function (error) {
         console.error('Failed to fetch users:', error);
-        self.users = self.getMergedUsers([]);
-        self.showProfileSelection();
+        self.publicUsers = [];
+        handleUsersReady(self.getMergedUsers([]));
     });
 };
 
@@ -513,6 +593,7 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
 
     var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
     var storedAuth = this.getStoredAuth(serverId);
+    var autoSignInUserId = this.getAutoSignInUser(serverId);
 
     // Create profile columns
     this.users.forEach(function (user, index) {
@@ -529,6 +610,23 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
         var isSaved = !!(self.getUserToken(serverId, user.Id) || (storedAuth && storedAuth[user.Id]) || user._saved);
         if (isSaved) {
             var hasPin = !!self.getUserPin(serverId, user.Id);
+
+            if (!hasPin) {
+                var isAuto = autoSignInUserId === user.Id;
+                var autoBtn = document.createElement('button');
+                autoBtn.type = 'button';
+                autoBtn.className = 'profile-action-btn profile-action-auto' + (isAuto ? ' is-on' : '');
+                autoBtn.textContent = isAuto ? '\u2713 Auto sign-in' : 'Auto sign-in';
+                autoBtn.onclick = function () {
+                    if (self.getAutoSignInUser(serverId) === user.Id) {
+                        self.setAutoSignInUser(serverId, null);
+                    } else {
+                        self.setAutoSignInUser(serverId, user.Id);
+                    }
+                    self.showProfileSelection({ userId: user.Id, target: 'auto' });
+                };
+                subActions.appendChild(autoBtn);
+            }
 
             var pinBtn = document.createElement('button');
             pinBtn.type = 'button';
@@ -580,9 +678,14 @@ PROFILES.prototype.showProfileSelection = function (focusTarget) {
             var cols = grid.querySelectorAll('.profile-column');
             for (var i = 0; i < cols.length; i++) {
                 if (cols[i].dataset.userId === focusTarget.userId) {
-                    var targetEl = focusTarget.target === 'pin'
-                        ? cols[i].querySelector('.profile-action-pin')
-                        : cols[i].querySelector('.profile-card');
+                    var targetEl = null;
+                    if (focusTarget.target === 'pin') {
+                        targetEl = cols[i].querySelector('.profile-action-pin');
+                    } else if (focusTarget.target === 'auto') {
+                        targetEl = cols[i].querySelector('.profile-action-auto');
+                    } else {
+                        targetEl = cols[i].querySelector('.profile-card');
+                    }
                     if (!targetEl) {
                         targetEl = cols[i].querySelector('.profile-card');
                     }
@@ -667,11 +770,17 @@ PROFILES.prototype.createProfileCard = function (user, index) {
     }
 
     // Stored PIN / token indicator
+    var isAutoSignIn = !hasPin && this.getAutoSignInUser(serverId) === user.Id;
     if (hasPin) {
         var pinProtected = document.createElement('div');
         pinProtected.className = 'profile-remembered';
         pinProtected.textContent = 'PIN protected';
         card.appendChild(pinProtected);
+    } else if (isAutoSignIn) {
+        var autoBadge = document.createElement('div');
+        autoBadge.className = 'profile-remembered';
+        autoBadge.textContent = 'Auto sign-in';
+        card.appendChild(autoBadge);
     } else if (storedToken) {
         var remembered = document.createElement('div');
         remembered.className = 'profile-remembered';
@@ -890,22 +999,46 @@ PROFILES.prototype.finishLogin = function (user, token) {
     var skipped = userId ? this.isPinPromptSkipped(serverId, userId) : false;
 
     if (userId && !existingPin && !skipped) {
+        var storedAuth = this.getStoredAuth(serverId);
+        var storedIds = Object.keys(storedAuth);
+        var hasOtherSavedUsers = false;
+        for (var i = 0; i < storedIds.length; i++) {
+            var uid = storedIds[i];
+            if (uid !== userId && storedAuth[uid] && (storedAuth[uid].token || storedAuth[uid].userName)) {
+                hasOtherSavedUsers = true;
+                break;
+            }
+        }
+
         this.showNumericPin({
-            title: 'Set a PIN for ' + (user.Name || 'this profile') + '?',
-            subtitle: '4-digit PIN to protect this profile on this TV',
+            title: 'Set up ' + (user.Name || 'this profile'),
+            subtitle: 'Enter a 4-digit PIN, or choose an option below',
             mode: 'set',
-            buttons: { skip: true },
+            buttons: {
+                singleUser: true,
+                multiUser: true
+            },
+            initialFocus: hasOtherSavedUsers ? 'multiUser' : 'singleUser',
             onComplete: function (pin) {
+                // setUserPin also clears auto sign-in if it pointed at this user
                 self.setUserPin(serverId, userId, pin);
                 self.hideNumericPin();
                 self.hideProfileSelection();
                 self.onComplete(user, token);
             },
-            onSkip: function () {
+            onSingleUser: function () {
                 self.setPinPromptSkipped(serverId, userId, true);
+                self.setAutoSignInUser(serverId, userId);
                 self.hideNumericPin();
                 self.hideProfileSelection();
                 self.onComplete(user, token);
+            },
+            onMultiUser: function () {
+                self.setPinPromptSkipped(serverId, userId, true);
+                self.setAutoSignInUser(serverId, null);
+                self.hideNumericPin();
+                self.users = self.getMergedUsers(self.publicUsers || []);
+                self.showProfileSelection({ userId: userId, target: 'card' });
             }
         });
         return;
@@ -1481,6 +1614,8 @@ PROFILES.prototype.showNumericPin = function (options) {
     var pad = document.getElementById('numPinPad');
     var keys = pad ? Array.prototype.slice.call(pad.querySelectorAll('.num-pin-key')) : [];
 
+    var btnSingle = document.getElementById('numPinSingleUser');
+    var btnMulti = document.getElementById('numPinMultiUser');
     var btnSkip = document.getElementById('numPinSkip');
     var btnRemove = document.getElementById('numPinRemove');
     var btnForget = document.getElementById('numPinForget');
@@ -1497,6 +1632,12 @@ PROFILES.prototype.showNumericPin = function (options) {
         dotsContainer.classList.remove('shake');
     }
 
+    if (btnSingle) {
+        btnSingle.style.display = buttons.singleUser ? 'inline-block' : 'none';
+    }
+    if (btnMulti) {
+        btnMulti.style.display = buttons.multiUser ? 'inline-block' : 'none';
+    }
     btnSkip.style.display = buttons.skip ? 'inline-block' : 'none';
     btnRemove.style.display = buttons.remove ? 'inline-block' : 'none';
     btnForget.style.display = buttons.forget ? 'inline-block' : 'none';
@@ -1596,6 +1737,26 @@ PROFILES.prototype.showNumericPin = function (options) {
         };
     });
 
+    if (btnSingle) {
+        btnSingle.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (options.onSingleUser) {
+                options.onSingleUser();
+            }
+        };
+    }
+
+    if (btnMulti) {
+        btnMulti.onclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (options.onMultiUser) {
+                options.onMultiUser();
+            }
+        };
+    }
+
     btnSkip.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1632,7 +1793,7 @@ PROFILES.prototype.showNumericPin = function (options) {
     };
 
     var getVisibleActions = function () {
-        var list = [btnSkip, btnRemove, btnForget, btnCancel];
+        var list = [btnSingle, btnMulti, btnSkip, btnRemove, btnForget, btnCancel];
         return list.filter(function (b) {
             return b && b.style.display !== 'none';
         });
@@ -1733,7 +1894,11 @@ PROFILES.prototype.showNumericPin = function (options) {
     overlay.style.display = 'flex';
     document.addEventListener('keydown', this._numPinKeyHandler, true);
 
-    if (keys.length > 0) {
+    if (options.initialFocus === 'singleUser' && btnSingle && buttons.singleUser) {
+        btnSingle.focus();
+    } else if (options.initialFocus === 'multiUser' && btnMulti && buttons.multiUser) {
+        btnMulti.focus();
+    } else if (keys.length > 0) {
         keys[0].focus();
     }
 };

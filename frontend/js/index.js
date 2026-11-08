@@ -448,8 +448,8 @@ function handleSuccessManifest(data, baseurl) {
     }
 
     // Start profile selection flow instead of direct handoff
-    // Always show profile selection on startup
-    startProfileSelection(serverInfo, { forceShowSelection: true });
+    // Allow auto sign-in on startup if configured for a profile
+    startProfileSelection(serverInfo, { forceShowSelection: false, allowAutoSignIn: true });
 }
 
 /**
