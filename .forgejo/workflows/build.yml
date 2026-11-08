@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+    steps:
+      - name: Checkout repository
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci || npm install
+
+      - name: Build IPK package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build
+          mkdir -p build
+          npm run package
+
+      - name: Generate Homebrew manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/gen-manifest.js build/org.jellyfin.webos.manifest.json
+
+      - name: Upload build artifacts
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: jellyfin-webos
+          path: build/*

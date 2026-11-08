@@ -939,7 +939,7 @@ function getSwitchUserInjectionScript() {
         '                    hBtn.type = "button";' +
         '                    hBtn.id = "jf-switch-user-header-btn";' +
         '                    hBtn.setAttribute("is", "paper-icon-button-light");' +
-        '                    hBtn.className = "headerButton headerButtonRight paper-icon-button-light jf-switch-user";' +
+        '                    hBtn.className = "headerButton headerButtonRight paper-icon-button-light show-focus jf-switch-user";' +
         '                    hBtn.title = "Switch user";' +
         '                    hBtn.setAttribute("aria-label", "Switch user");' +
         '                    hBtn.innerHTML = "<span class=\'material-icons\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span>";' +
@@ -980,7 +980,7 @@ function getSwitchUserInjectionScript() {
         '                        var pBtn = document.createElement("a");' +
         '                        pBtn.id = "jf-switch-user-prefs-btn";' +
         '                        pBtn.setAttribute("is", "emby-linkbutton");' +
-        '                        pBtn.className = "emby-button listItem-border";' +
+        '                        pBtn.className = "emby-button listItem-border show-focus";' +
         '                        pBtn.href = "#";' +
         '                        pBtn.setAttribute("style", "display:block;margin:0;padding:0");' +
         '                        pBtn.innerHTML = "<div class=\'listItem\'><span class=\'material-icons listItemIcon listItemIcon-transparent\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span><div class=\'listItemBody\'><div class=\'listItemBodyText\'>Switch User</div></div></div>";' +

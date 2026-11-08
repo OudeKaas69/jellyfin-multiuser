@@ -1,0 +1,28 @@
+name: Upstream check
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check-upstream:
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+    steps:
+      - name: Checkout repository
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Check upstream for updates
+        shell: bash
+        env:
+          FORGEJO_API: ${{ github.api_url || 'https://forgejo.timsas.nl/api/v1' }}
+          FORGEJO_WEB: ${{ github.server_url || 'https://forgejo.timsas.nl' }}
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.FORGEJO_TOKEN || github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          bash tools/upstream-check.sh
