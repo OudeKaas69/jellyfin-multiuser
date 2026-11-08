@@ -16,6 +16,10 @@ var appInfo = {
     appVersion: '0.0.0'
 };
 
+// Store authenticated user info for handoff
+var authenticatedUser = null;
+var authToken = null;
+
 var deviceInfo;
 webOS.deviceInfo(function (info) {
     deviceInfo = info;
@@ -57,13 +61,13 @@ function navigate(amount) {
         navigationInit();
     } else {
         //Isolate the node that we're after
-        const currentNode = element;
+        var currentNode = element;
 
         //find all tab-able elements
-        const allElements = document.querySelectorAll('input, button, a, area, object, select, textarea, [contenteditable]');
+        var allElements = document.querySelectorAll('input, button, a, area, object, select, textarea, [contenteditable]');
 
         //Find the current tab index.
-        const currentIndex = findIndex(allElements, currentNode);
+        var currentIndex = findIndex(allElements, currentNode);
 
         //focus the following element
         if (allElements[currentIndex + amount])
@@ -88,6 +92,32 @@ function rightArrowPressed() {
 }
 
 function backPressed() {
+    // Check if profile selection or overlays are visible
+    var profileSelection = document.getElementById('profileSelection');
+    var pinOverlay = document.getElementById('pinOverlay');
+    var manualLoginOverlay = document.getElementById('manualLoginOverlay');
+    var quickConnectOverlay = document.getElementById('quickConnectOverlay');
+
+    if (quickConnectOverlay && quickConnectOverlay.style.display !== 'none') {
+        profiles.hideQuickConnect();
+        return;
+    }
+
+    if (pinOverlay && pinOverlay.style.display !== 'none') {
+        profiles.hidePinEntry();
+        return;
+    }
+
+    if (manualLoginOverlay && manualLoginOverlay.style.display !== 'none') {
+        profiles.hideManualLogin();
+        return;
+    }
+
+    if (profileSelection && profileSelection.style.display !== 'none') {
+        profiles.goBack();
+        return;
+    }
+
     webOS.platformBack();
 }
 
@@ -294,19 +324,21 @@ function handleSuccessServerInfo(data, baseurl, auto_connect) {
                 displayError("The server ID has changed since the last connection, please check if you are reaching your own server. To connect anyway, click connect again.");
                 delete connected_servers[server_id]
                 connected_servers[data.Id] = ({ 'baseurl': baseurl, 'auto_connect': false, 'id': false })
-                storage.set('connected_server', connected_servers)
+                storage.set('connected_servers', connected_servers)  // Fixed: was 'connected_server' (typo)
                 return false
             }
         }
     }
 
 
-    connected_servers = lruStrategy(connected_servers,4, { 'baseurl': baseurl, 'auto_connect': auto_connect, 'id': data.Id, 'Name':data.ServerName })
+    server_info = data;
+
+    connected_servers = lruStrategy(connected_servers, 4, { 'baseurl': baseurl, 'auto_connect': auto_connect, 'id': data.Id, 'Id': data.Id, 'Name': data.ServerName });
 
     storage.set('connected_servers', connected_servers);
 
 
-    getManifest(baseurl)
+    getManifest(baseurl);
     return true;
 }
 
@@ -333,38 +365,97 @@ function handleSuccessManifest(data, baseurl) {
 
     curr_req = false;
 
+    // Try to find existing server entry by baseurl
+    var serverInfo = null;
     for (var server_id in connected_servers) {
-        var info = connected_servers[server_id]
-        if (info['baseurl' ] == baseurl) {
-            info['hosturl'] = hosturl
-            info['Address'] = info['Address'] || baseurl
-
-            storage.set('connected_servers', connected_servers)
-            console.log("martin:handleSuccessManifest modified server");
+        var info = connected_servers[server_id];
+        if (info && info.baseurl == baseurl) {
+            // update hosturl/address and use this entry
+            info.hosturl = hosturl;
+            info.Address = info.Address || baseurl;
+            storage.set('connected_servers', connected_servers);
+            console.log("handleSuccessManifest modified server");
             console.log(info);
-
-        // avoid Promise as it's buggy in some WebOS
-            getTextToInject(function (bundle) {
-                handoff(hosturl, bundle);
-            }, function (error) {
-                console.error(error);
-                displayError(error);
-                hideConnecting();
-                curr_req = false;
-            });
-            return;
+            serverInfo = info;
+            break;
         }
     }
-    //no id, unshoft generates unique(?) index
-    connected_servers.unshift({
-        'baseurl': baseurl,
-        'hosturl': hosturl,
-        'Name': data.shortname,
-        'Address': new URL(baseurl).hostname.slice(0,8),
-    })
-    storage.set('connected_server', servers)
-    console.log("martin:handleSuccessManifest added server");
-    console.log(info);
+
+    if (!serverInfo) {
+        var resolvedId = (server_info && server_info.Id) ? server_info.Id : baseurl;
+        var hostPart = baseurl.replace(/^https?:\/\//i, '').split('/')[0].slice(0, 8);
+        // Build a minimal serverInfo object to use for profile selection
+        serverInfo = {
+            id: resolvedId, // fallback id = baseurl when real id is not available
+            Id: resolvedId,
+            baseurl: baseurl,
+            hosturl: hosturl,
+            Name: (server_info && server_info.ServerName) || data.shortname || baseurl,
+            Address: hostPart
+        };
+
+        // Save into connected_servers using fallback id
+        connected_servers = connected_servers || {};
+        connected_servers[serverInfo.id] = serverInfo;
+        storage.set('connected_servers', connected_servers);
+        console.log("handleSuccessManifest added server");
+        console.log(serverInfo);
+    }
+
+    // Start profile selection flow instead of direct handoff
+    // Always show profile selection on startup
+    startProfileSelection(serverInfo, { forceShowSelection: true });
+}
+
+/**
+ * Start the profile selection flow
+ */
+function startProfileSelection(serverInfo, options) {
+    // Update server name display
+    var serverNameElem = document.getElementById('profileServerName');
+    if (serverNameElem) {
+        serverNameElem.textContent = serverInfo.Name || serverInfo.Address || serverInfo.baseurl;
+    }
+
+    options = options || {};
+
+    profiles.init(serverInfo, function (user, token) {
+        authenticatedUser = user;
+        authToken = token;
+
+        // After authentication, the server ID may have been updated to the real ServerId
+        // Update connected_servers with the correct ID for future use
+        if (profiles.currentServer && profiles.currentServer.id) {
+            var oldId = serverInfo.id;
+            var newId = profiles.currentServer.id;
+            
+            if (oldId !== newId) {
+                console.log('Server ID updated from', oldId, 'to', newId);
+                // Remove old entry and add with new ID
+                if (connected_servers && connected_servers[oldId]) {
+                    var serverData = connected_servers[oldId];
+                    delete connected_servers[oldId];
+                    serverData.id = newId;
+                    serverData.Id = newId;
+                    connected_servers[newId] = serverData;
+                    storage.set('connected_servers', connected_servers);
+                }
+                // Also update serverInfo reference
+                serverInfo.id = newId;
+                serverInfo.Id = newId;
+            }
+        }
+
+        // Proceed to handoff with auth info
+        getTextToInject(function (bundle) {
+            handoff(serverInfo.hosturl, bundle);
+        }, function (error) {
+            console.error(error);
+            displayError(error);
+            hideConnecting();
+            curr_req = false;
+        });
+    }, options);
 }
 
 function handleAbort() {
@@ -452,71 +543,485 @@ function injectStyleText(document, text) {
     document.body.appendChild(style);
 }
 
+var handoffTimer = null;
+var handoffLoadHandler = null;
+
+function escapeJsString(str) {
+    if (!str) return '';
+    return String(str).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+}
+
 function handoff(url, bundle) {
-    console.log("Handoff called with: ", url)
-    //hideConnecting();
+    console.log("Handoff called with: ", url);
 
     stopDiscovery();
     document.querySelector('.container').style.display = 'none';
+    document.getElementById('profileSelection').style.display = 'none';
 
     var contentFrame = document.querySelector('#contentFrame');
-    var contentWindow = contentFrame.contentWindow;
 
-    var timer;
+    if (handoffTimer) {
+        clearInterval(handoffTimer);
+        handoffTimer = null;
+    }
+    if (handoffLoadHandler) {
+        contentFrame.removeEventListener('load', handoffLoadHandler);
+        handoffLoadHandler = null;
+    }
 
-    function onLoad() {
-        clearInterval(timer);
-        contentFrame.contentDocument.removeEventListener('DOMContentLoaded', onLoad);
-        contentFrame.removeEventListener('load', onLoad);
+    // Inject a script as early as possible to set/preserve target credentials
+    function injectEarlyScript(doc) {
+        if (!doc || doc.__jfEarlyInjected) return;
+        if (contentFrame.style.display === 'none') return;
+        if (doc.location && doc.location.href === 'about:blank') return;
 
-        injectScriptText(contentFrame.contentDocument, 'window.AppInfo = ' + JSON.stringify(appInfo) + ';');
-        injectScriptText(contentFrame.contentDocument, 'window.DeviceInfo = ' + JSON.stringify(deviceInfo) + ';');
-
-        if (bundle.js) {
-            injectScriptText(contentFrame.contentDocument, bundle.js);
-        }
-
-        if (bundle.css) {
-            injectStyleText(contentFrame.contentDocument, bundle.css);
+        try {
+            var target = doc.head || doc.documentElement;
+            if (target) {
+                var clearScriptText = getCredentialClearScript();
+                doc.__jfEarlyInjected = true;
+                if (clearScriptText) {
+                    var script = doc.createElement('script');
+                    script.type = 'text/javascript';
+                    script.textContent = clearScriptText;
+                    target.insertBefore(script, target.firstChild);
+                    console.log("Jellyfin WebOS: Injected early credential sync script");
+                }
+            }
+        } catch (e) {
+            console.warn("Jellyfin WebOS: Could not inject early script", e);
         }
     }
 
-    function onUnload() {
-        contentWindow.removeEventListener('unload', onUnload);
+    function armUnload(win) {
+        if (!win) return;
+        try {
+            if (!win.__jfUnloadArmed) {
+                win.__jfUnloadArmed = true;
+                win.addEventListener('unload', onUnload);
+            }
+        } catch (e) {
+            console.warn("Jellyfin WebOS: Could not arm unload listener", e);
+        }
+    }
 
-        timer = setInterval(function () {
+    function runInjection(doc) {
+        if (!doc || doc.__jfInjected) return;
+        if (contentFrame.style.display === 'none') return;
+        if (doc.location && doc.location.href === 'about:blank') return;
+        if (!doc.head || !doc.body) return;
+
+        doc.__jfInjected = true;
+
+        injectScriptText(doc, 'window.AppInfo = ' + JSON.stringify(appInfo) + ';');
+        injectScriptText(doc, 'window.DeviceInfo = ' + JSON.stringify(deviceInfo) + ';');
+
+        // Inject auth credentials if available
+        if (authenticatedUser && authToken) {
+            var authInfo = {
+                user: authenticatedUser,
+                token: authToken
+            };
+            injectScriptText(doc, 'window.JellyfinCredentials = ' + JSON.stringify(authInfo) + ';');
+
+            var credentialScript = getCredentialInjectionScript();
+            injectScriptText(doc, credentialScript);
+        }
+
+        // Always inject Switch User UI and Sign Out interception on every load
+        injectScriptText(doc, getSwitchUserInjectionScript());
+
+        if (bundle.js) {
+            injectScriptText(doc, bundle.js);
+        }
+
+        if (bundle.css) {
+            injectStyleText(doc, bundle.css);
+        }
+    }
+
+    function onLoad() {
+        if (handoffTimer) {
+            clearInterval(handoffTimer);
+            handoffTimer = null;
+        }
+        var doc = contentFrame.contentDocument;
+        var win = contentFrame.contentWindow;
+        if (doc) {
+            doc.removeEventListener('DOMContentLoaded', onLoad);
+        }
+        armUnload(win);
+        runInjection(doc);
+    }
+
+    function onUnload() {
+        if (handoffTimer) {
+            clearInterval(handoffTimer);
+            handoffTimer = null;
+        }
+
+        handoffTimer = setInterval(function () {
             var contentDocument = contentFrame.contentDocument;
+            var contentWin = contentFrame.contentWindow;
+            if (!contentDocument) return;
+
+            armUnload(contentWin);
 
             switch (contentDocument.readyState) {
                 case 'loading':
-                    clearInterval(timer);
+                    injectEarlyScript(contentDocument);
+                    clearInterval(handoffTimer);
+                    handoffTimer = null;
                     contentDocument.addEventListener('DOMContentLoaded', onLoad);
                     break;
 
-                // In the case of "loading" is not caught
                 case 'interactive':
-                    onLoad();
+                case 'complete':
+                    injectEarlyScript(contentDocument);
+                    if (contentDocument.body) {
+                        clearInterval(handoffTimer);
+                        handoffTimer = null;
+                        onLoad();
+                    }
                     break;
             }
         }, 0);
     }
 
-    contentWindow.addEventListener('unload', onUnload);
-
-    // In the case of "loading" and "interactive" are not caught
-    contentFrame.addEventListener('load', onLoad);
+    handoffLoadHandler = onLoad;
+    contentFrame.addEventListener('load', handoffLoadHandler);
+    armUnload(contentFrame.contentWindow);
 
     contentFrame.style.display = '';
     contentFrame.src = url;
 }
 
+/**
+ * Generate the script that synchronizes target credentials BEFORE jellyfin-web reads them.
+ * When authenticatedUser is null, does not clear anything.
+ * When target credentials exist, checks if localStorage already matches; if not, writes target credentials directly.
+ */
+function getCredentialClearScript() {
+    if (!authenticatedUser || !authToken) {
+        return '';
+    }
+
+    var targetUserId = authenticatedUser.Id || '';
+    var targetToken = authToken || '';
+    var serverId = (profiles.currentServer && (profiles.currentServer.id || profiles.currentServer.Id)) ? (profiles.currentServer.id || profiles.currentServer.Id) : '';
+    var serverAddress = (profiles.currentServer && profiles.currentServer.baseurl) ? profiles.currentServer.baseurl : '';
+    var serverName = (profiles.currentServer && profiles.currentServer.Name) ? profiles.currentServer.Name : serverAddress;
+
+    if (!serverId || !targetUserId || !targetToken) {
+        return '';
+    }
+
+    return '(function() {' +
+        '    var serverId = "' + escapeJsString(serverId) + '";' +
+        '    var serverAddress = "' + escapeJsString(serverAddress) + '";' +
+        '    var serverName = "' + escapeJsString(serverName) + '";' +
+        '    var targetUserId = "' + escapeJsString(targetUserId) + '";' +
+        '    var targetToken = "' + escapeJsString(targetToken) + '";' +
+        '    var credentialKey = "jellyfin_credentials";' +
+        '    try {' +
+        '        var existingCreds = JSON.parse(localStorage.getItem(credentialKey) || "{}");' +
+        '        if (!existingCreds.Servers) { existingCreds.Servers = []; }' +
+        '        var first = existingCreds.Servers[0];' +
+        '        if (first && first.Id === serverId && first.UserId === targetUserId && first.AccessToken === targetToken && localStorage.getItem("enableAutoLogin") === "true") {' +
+        '            window.__jfCredsMatchedAtStart = true;' +
+        '            return;' +
+        '        }' +
+        '        var serverEntry = null;' +
+        '        var serverIndex = -1;' +
+        '        for (var i = 0; i < existingCreds.Servers.length; i++) {' +
+        '            if (existingCreds.Servers[i].Id === serverId) {' +
+        '                serverEntry = existingCreds.Servers[i];' +
+        '                serverIndex = i;' +
+        '                break;' +
+        '            }' +
+        '        }' +
+        '        if (!serverEntry) {' +
+        '            serverEntry = {' +
+        '                Id: serverId,' +
+        '                Name: serverName,' +
+        '                ManualAddress: serverAddress,' +
+        '                LocalAddress: serverAddress,' +
+        '                LastConnectionMode: 2' +
+        '            };' +
+        '            existingCreds.Servers.push(serverEntry);' +
+        '            serverIndex = existingCreds.Servers.length - 1;' +
+        '        }' +
+        '        serverEntry.AccessToken = targetToken;' +
+        '        serverEntry.UserId = targetUserId;' +
+        '        serverEntry.DateLastAccessed = new Date().getTime();' +
+        '        if (serverIndex > 0) {' +
+        '            existingCreds.Servers.splice(serverIndex, 1);' +
+        '            existingCreds.Servers.unshift(serverEntry);' +
+        '        }' +
+        '        localStorage.setItem("enableAutoLogin", "true");' +
+        '        localStorage.setItem(credentialKey, JSON.stringify(existingCreds));' +
+        '        window.__jfCredsOverwrittenEarly = true;' +
+        '    } catch (e) {' +
+        '        console.warn("Jellyfin WebOS: Error syncing early credentials", e);' +
+        '    }' +
+        '})();';
+}
+
+/**
+ * Generate the script that injects credentials into Jellyfin-web's credential manager
+ * and triggers at most one reload if stored credentials did not already match.
+ */
+function getCredentialInjectionScript() {
+    var targetUserId = (authenticatedUser && authenticatedUser.Id) ? authenticatedUser.Id : '';
+    var targetUserName = (authenticatedUser && authenticatedUser.Name) ? authenticatedUser.Name : '';
+    var targetToken = authToken || '';
+    var serverId = (profiles.currentServer && (profiles.currentServer.id || profiles.currentServer.Id)) ? (profiles.currentServer.id || profiles.currentServer.Id) : '';
+    var serverAddress = (profiles.currentServer && profiles.currentServer.baseurl) ? profiles.currentServer.baseurl : '';
+    var serverName = (profiles.currentServer && profiles.currentServer.Name) ? profiles.currentServer.Name : serverAddress;
+
+    return '(function() {' +
+        '    if (!window.JellyfinCredentials) {' +
+        '        return;' +
+        '    }' +
+        '    var creds = window.JellyfinCredentials;' +
+        '    var serverId = "' + escapeJsString(serverId) + '";' +
+        '    var serverAddress = "' + escapeJsString(serverAddress) + '";' +
+        '    var serverName = "' + escapeJsString(serverName) + '";' +
+        '    var targetUserId = "' + escapeJsString(targetUserId) + '";' +
+        '    var targetUserName = "' + escapeJsString(targetUserName) + '";' +
+        '    var targetToken = "' + escapeJsString(targetToken) + '";' +
+        '    if (!serverId || !targetUserId || !creds.token) {' +
+        '        return;' +
+        '    }' +
+        '    var reloadKey = "jf_webos_injected_" + targetUserId;' +
+        '    var keysToRemove = [];' +
+        '    for (var k = 0; k < sessionStorage.length; k++) {' +
+        '        var key = sessionStorage.key(k);' +
+        '        if (key && key.indexOf("jf_webos_injected_") === 0 && key !== reloadKey) {' +
+        '            keysToRemove.push(key);' +
+        '        }' +
+        '    }' +
+        '    for (var r = 0; r < keysToRemove.length; r++) {' +
+        '        sessionStorage.removeItem(keysToRemove[r]);' +
+        '    }' +
+        '    var credentialKey = "jellyfin_credentials";' +
+        '    var existingCreds = {};' +
+        '    try {' +
+        '        existingCreds = JSON.parse(localStorage.getItem(credentialKey) || "{}");' +
+        '    } catch (e) {}' +
+        '    if (!existingCreds.Servers) {' +
+        '        existingCreds.Servers = [];' +
+        '    }' +
+        '    var firstServer = existingCreds.Servers[0];' +
+        '    var matchedNow = !!(firstServer && firstServer.Id === serverId && firstServer.UserId === targetUserId && firstServer.AccessToken === creds.token && localStorage.getItem("enableAutoLogin") === "true");' +
+        '    var matchedBeforeLoad = !!(window.__jfCredsMatchedAtStart || (matchedNow && !window.__jfCredsOverwrittenEarly));' +
+        '    if (!matchedNow) {' +
+        '        var serverEntry = null;' +
+        '        var serverIndex = -1;' +
+        '        for (var i = 0; i < existingCreds.Servers.length; i++) {' +
+        '            if (existingCreds.Servers[i].Id === serverId) {' +
+        '                serverEntry = existingCreds.Servers[i];' +
+        '                serverIndex = i;' +
+        '                break;' +
+        '            }' +
+        '        }' +
+        '        if (!serverEntry) {' +
+        '            serverEntry = {' +
+        '                Id: serverId,' +
+        '                Name: serverName,' +
+        '                ManualAddress: serverAddress,' +
+        '                LocalAddress: serverAddress,' +
+        '                LastConnectionMode: 2' +
+        '            };' +
+        '            existingCreds.Servers.push(serverEntry);' +
+        '            serverIndex = existingCreds.Servers.length - 1;' +
+        '        }' +
+        '        serverEntry.AccessToken = creds.token;' +
+        '        serverEntry.UserId = targetUserId;' +
+        '        serverEntry.DateLastAccessed = new Date().getTime();' +
+        '        if (serverIndex > 0) {' +
+        '            existingCreds.Servers.splice(serverIndex, 1);' +
+        '            existingCreds.Servers.unshift(serverEntry);' +
+        '        }' +
+        '        localStorage.setItem("enableAutoLogin", "true");' +
+        '        localStorage.setItem(credentialKey, JSON.stringify(existingCreds));' +
+        '    }' +
+        '    if (matchedBeforeLoad) {' +
+        '        if (sessionStorage.getItem(reloadKey) === "true") {' +
+        '            sessionStorage.removeItem(reloadKey);' +
+        '        }' +
+        '        console.log("Jellyfin WebOS: Credentials matched for user", targetUserName);' +
+        '        return;' +
+        '    }' +
+        '    if (sessionStorage.getItem(reloadKey) === "true") {' +
+        '        sessionStorage.removeItem(reloadKey);' +
+        '        return;' +
+        '    }' +
+        '    sessionStorage.setItem(reloadKey, "true");' +
+        '    location.reload();' +
+        '})();';
+}
+
+/**
+ * Generate the script that persistently injects "Switch user" buttons into the Jellyfin UI
+ * and intercepts "Sign out" actions to open the WebOS profile picker.
+ */
+function getSwitchUserInjectionScript() {
+    return '(function() {' +
+        '    if (window.__jfSwitchUserInitialized) return;' +
+        '    window.__jfSwitchUserInitialized = true;' +
+        '    var triggerShowProfiles = function(evt) {' +
+        '        if (evt) {' +
+        '            try { evt.preventDefault(); evt.stopPropagation(); } catch (e) {}' +
+        '        }' +
+        '        try { window.parent.postMessage({ type: "showProfiles" }, "*"); } catch (e) {}' +
+        '    };' +
+        '    var bindActivate = function(btn) {' +
+        '        btn.onclick = function(e) { triggerShowProfiles(e); };' +
+        '        btn.onkeydown = function(e) {' +
+        '            var code = e ? (e.keyCode || e.which) : 0;' +
+        '            if (code === 13 || code === 32) { triggerShowProfiles(e); }' +
+        '        };' +
+        '    };' +
+        '    var ensureButtons = function() {' +
+        '        try {' +
+        '            if (!document.getElementById("jf-switch-user-header-btn")) {' +
+        '                var headerRight = document.querySelector(".headerRight");' +
+        '                var skinHeader = headerRight || document.querySelector(".skinHeader");' +
+        '                if (skinHeader) {' +
+        '                    var hBtn = document.createElement("button");' +
+        '                    hBtn.type = "button";' +
+        '                    hBtn.id = "jf-switch-user-header-btn";' +
+        '                    hBtn.className = "headerButton headerButtonRight paper-icon-button-light jf-switch-user";' +
+        '                    hBtn.tabIndex = 0;' +
+        '                    hBtn.title = "Switch user";' +
+        '                    hBtn.setAttribute("aria-label", "Switch user");' +
+        '                    hBtn.textContent = "Switch user";' +
+        '                    hBtn.style.cssText = "padding:6px 12px;margin:0 6px;border-radius:4px;cursor:pointer;font-size:14px;width:auto;display:inline-flex;align-items:center;";' +
+        '                    bindActivate(hBtn);' +
+        '                    var userBtn = headerRight ? headerRight.querySelector(".headerUserButton") : null;' +
+        '                    if (headerRight && userBtn && userBtn.parentNode === headerRight) {' +
+        '                        headerRight.insertBefore(hBtn, userBtn);' +
+        '                    } else {' +
+        '                        skinHeader.appendChild(hBtn);' +
+        '                    }' +
+        '                }' +
+        '            }' +
+        '            if (!document.getElementById("jf-switch-user-prefs-btn")) {' +
+        '                var prefs = document.querySelector("#myPreferencesMenuPage, .myPreferencesMenuPage");' +
+        '                if (prefs) {' +
+        '                    var logoutEl = prefs.querySelector(".btnLogout");' +
+        '                    if (!logoutEl) {' +
+        '                        var candidates = prefs.querySelectorAll("button, a, .listItem");' +
+        '                        for (var i = 0; i < candidates.length; i++) {' +
+        '                            var txt = (candidates[i].innerText || candidates[i].textContent || "").trim().toLowerCase();' +
+        '                            if (txt === "sign out" || txt === "log out" || txt === "logout" || txt.indexOf("sign out") !== -1) {' +
+        '                                logoutEl = candidates[i];' +
+        '                                break;' +
+        '                            }' +
+        '                        }' +
+        '                    }' +
+        '                    if (logoutEl && logoutEl.parentNode) {' +
+        '                        var pBtn = document.createElement("button");' +
+        '                        pBtn.type = "button";' +
+        '                        pBtn.id = "jf-switch-user-prefs-btn";' +
+        '                        pBtn.className = "listItem listItem-border headerButton paper-icon-button-light jf-switch-user-prefs";' +
+        '                        pBtn.tabIndex = 0;' +
+        '                        pBtn.textContent = "Switch user";' +
+        '                        pBtn.style.cssText = "display:flex;align-items:center;width:100%;padding:12px 16px;margin-top:4px;background:transparent;color:inherit;border:none;cursor:pointer;text-align:left;font-size:inherit;";' +
+        '                        bindActivate(pBtn);' +
+        '                        logoutEl.parentNode.insertBefore(pBtn, logoutEl.nextSibling);' +
+        '                    }' +
+        '                }' +
+        '            }' +
+        '        } catch (e) {' +
+        '            console.warn("Jellyfin WebOS: ensureButtons error", e);' +
+        '        }' +
+        '    };' +
+        '    document.addEventListener("click", function(e) {' +
+        '        var el = e.target;' +
+        '        while (el && el !== document.body) {' +
+        '            if (el.id === "jf-switch-user-header-btn" || el.id === "jf-switch-user-prefs-btn") {' +
+        '                return;' +
+        '            }' +
+        '            var cls = (typeof el.className === "string") ? el.className : "";' +
+        '            if (cls.indexOf("btnLogout") !== -1) {' +
+        '                triggerShowProfiles(e);' +
+        '                return;' +
+        '            }' +
+        '            var tag = el.tagName ? el.tagName.toUpperCase() : "";' +
+        '            if (tag === "BUTTON" || tag === "A" || cls.indexOf("listItem") !== -1) {' +
+        '                var t = (el.innerText || el.textContent || "").trim().toLowerCase();' +
+        '                if (t === "sign out" || t === "log out" || t === "logout") {' +
+        '                    triggerShowProfiles(e);' +
+        '                    return;' +
+        '                }' +
+        '            }' +
+        '            el = el.parentNode;' +
+        '        }' +
+        '    }, true);' +
+        '    ensureButtons();' +
+        '    setInterval(ensureButtons, 1000);' +
+        '    if (typeof MutationObserver !== "undefined") {' +
+        '        try {' +
+        '            var obs = new MutationObserver(function() { ensureButtons(); });' +
+        '            var root = document.body || document.documentElement;' +
+        '            if (root) { obs.observe(root, { childList: true, subtree: true }); }' +
+        '        } catch (e) {}' +
+        '    }' +
+        '})();';
+}
+
 window.addEventListener('message', function (msg) {
     msg = msg.data;
+    if (!msg || !msg.type) {
+        return;
+    }
+
+    console.log('Wrapper received message type:', msg.type);
 
     var contentFrame = document.querySelector('#contentFrame');
 
     switch (msg.type) {
+        case 'showProfiles':
+            // Clear any currently active auth so we re-open profile selection
+            authenticatedUser = null;
+            authToken = null;
+
+            stopDiscovery();
+            document.querySelector('.container').style.display = '';
+            hideConnecting();
+
+            contentFrame.style.display = 'none';
+            contentFrame.src = '';
+
+            // If the iframe provided a serverId, use it; otherwise use profiles.currentServer or first connected_servers entry
+            var serverToShow = null;
+            var allServers = getConnectedServers();
+            if (msg.serverId && allServers && allServers[msg.serverId]) {
+                serverToShow = allServers[msg.serverId];
+            } else if (profiles && profiles.currentServer) {
+                serverToShow = profiles.currentServer;
+            } else if (allServers) {
+                var serverKeys = Object.keys(allServers);
+                if (serverKeys.length > 0) {
+                    serverToShow = allServers[serverKeys[0]];
+                }
+            }
+
+            if (serverToShow) {
+                // Always show profile selection when switching users
+                startProfileSelection(serverToShow, { forceShowSelection: true });
+            } else {
+                // fallback: show discovery/server list so user can pick
+                startDiscovery();
+            }
+            break;
         case 'selectServer':
+            // Clear auth state when returning to server selection
+            authenticatedUser = null;
+            authToken = null;
+
             startDiscovery();
             document.querySelector('.container').style.display = '';
             hideConnecting();

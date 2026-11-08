@@ -9,10 +9,12 @@
 	<meta charset="UTF-8" />
 	<title>Jellyfin for webOS</title>
 	<link rel="stylesheet" href="css/main.css" type="text/css"/>
+	<link rel="stylesheet" href="css/profiles.css" type="text/css"/>
 	<script src="webOSTVjs-1.2.11/webOSTV.js" charset="utf-8"></script>
 	<script src="webOSTVjs-1.2.11/webOSTV-dev.js" charset="utf-8"></script>
 	<script src="js/ajax.js" charset="utf-8"></script>
 	<script src="js/storage.js" charset="utf-8"></script>
+	<script src="js/profiles.js" charset="utf-8"></script>
 	<script src="js/index.js"></script>
 </head>
 
@@ -41,6 +43,70 @@
 			<button id="abort" onclick="abort();">Abort</button>
 		</div>
 	</div>
+
+	<!-- Profile Selection Screen -->
+	<div id="profileSelection">
+		<button id="profileBackBtn" onclick="profiles.goBack();">&#8592; Back</button>
+		<h1>Who's watching?</h1>
+		<div id="profileServerName"></div>
+		<div id="profileGrid"></div>
+		<div id="profileError"></div>
+		<div id="profileLoading">
+			<div class="spinner"></div>
+		</div>
+	</div>
+
+	<!-- PIN Entry Overlay -->
+	<div id="pinOverlay">
+		<div class="pin-container">
+			<h2>Enter Password</h2>
+			<div id="pinUserName"></div>
+			<div id="pinError"></div>
+			<input type="password" id="pinInput" placeholder="Password" autocomplete="off" />
+			<div class="pin-buttons">
+				<button onclick="profiles.submitPin();">Sign In</button>
+				<button onclick="profiles.hidePinEntry();">Cancel</button>
+			</div>
+			<div class="pin-hint">Press Back to cancel</div>
+		</div>
+	</div>
+
+	<!-- Manual Login Overlay -->
+	<div id="manualLoginOverlay">
+		<div class="manual-login-container">
+			<h2>Sign In</h2>
+			<div id="manualLoginError"></div>
+			<input type="text" id="manualUsername" placeholder="Username" autocomplete="off" />
+			<input type="password" id="manualPassword" placeholder="Password" autocomplete="off" />
+			<div class="manual-login-buttons">
+				<button onclick="profiles.submitManualLogin();">Sign In</button>
+				<button onclick="profiles.hideManualLogin();">Cancel</button>
+			</div>
+			<div class="pin-hint">Press Back to cancel</div>
+		</div>
+	</div>
+
+	<!-- Quick Connect Overlay -->
+	<div id="quickConnectOverlay">
+		<div class="quickconnect-container">
+			<h2>Quick Connect</h2>
+			<div class="quickconnect-code-wrapper">
+				<div id="quickConnectCode">------</div>
+			</div>
+			<div id="quickConnectStatus">Generating code...</div>
+			<div id="quickConnectError"></div>
+			<div class="quickconnect-instructions">
+				<p>1. Open Jellyfin on another device where you're signed in</p>
+				<p>2. Go to Settings &rarr; Quick Connect</p>
+				<p>3. Enter the code shown above</p>
+			</div>
+			<div class="quickconnect-buttons">
+				<button onclick="profiles.hideQuickConnect();">Cancel</button>
+			</div>
+			<div class="pin-hint">Press Back to cancel</div>
+		</div>
+	</div>
+
 	<iframe id="contentFrame" style="display: none;"></iframe>
 </body>
 

@@ -1,0 +1,435 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Profile selection screen styles
+ */
+
+#profileSelection {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #101010;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#profileSelection h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    font-weight: 300;
+}
+
+#profileGrid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    max-width: 80%;
+    gap: 2rem;
+    padding: 1rem;
+}
+
+.profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 180px;
+    padding: 1.5rem 1rem;
+    background-color: #1a1a1a;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+    border: 3px solid transparent;
+    position: relative;
+}
+
+.profile-card:hover,
+.profile-card:focus {
+    background-color: #252525;
+    border-color: #00A4DC;
+    transform: scale(1.05);
+}
+
+.profile-card:focus {
+    box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
+}
+
+.profile-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    background-color: #292929;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar-placeholder {
+    font-size: 3rem;
+    color: #00A4DC;
+    font-weight: bold;
+}
+
+.profile-card-add .profile-avatar-placeholder {
+    font-size: 4rem;
+    color: #666;
+}
+
+.profile-card-add:hover .profile-avatar-placeholder,
+.profile-card-add:focus .profile-avatar-placeholder {
+    color: #00A4DC;
+}
+
+.profile-name {
+    font-size: 1.2rem;
+    color: #fff;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-lock {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 1rem;
+    opacity: 0.7;
+}
+
+.profile-remembered {
+    font-size: 0.75rem;
+    color: #00A4DC;
+    margin-top: 0.5rem;
+}
+
+#profileServerName {
+    font-size: 1rem;
+    color: #888;
+    margin-bottom: 2rem;
+}
+
+#profileError {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #c62828;
+    color: #fff;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    display: none;
+    z-index: 200;
+}
+
+#profileLoading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(16, 16, 16, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 150;
+}
+
+#profileLoading .spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid #333;
+    border-top-color: #00A4DC;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* PIN Entry Overlay */
+#pinOverlay,
+#manualLoginOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(16, 16, 16, 0.95);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.pin-container,
+.manual-login-container {
+    background-color: #1a1a1a;
+    padding: 2.5rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    min-width: 400px;
+}
+
+.pin-container h2,
+.manual-login-container h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #fff;
+    font-weight: 400;
+}
+
+#pinUserName {
+    font-size: 1.2rem;
+    color: #00A4DC;
+    margin-bottom: 1.5rem;
+}
+
+#pinInput,
+#manualUsername,
+#manualPassword {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.5rem;
+    text-align: center;
+    background-color: #292929;
+    border: 2px solid #333;
+    border-radius: 0.3rem;
+    color: #fff;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+#pinInput:focus,
+#manualUsername:focus,
+#manualPassword:focus {
+    outline: none;
+    border-color: #00A4DC;
+}
+
+#pinError,
+#manualLoginError {
+    color: #ef5350;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+
+.pin-buttons,
+.manual-login-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.pin-buttons button,
+.manual-login-buttons button {
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pin-buttons button:first-child,
+.manual-login-buttons button:first-child {
+    background-color: #00A4DC;
+    color: #fff;
+}
+
+.pin-buttons button:last-child,
+.manual-login-buttons button:last-child {
+    background-color: #333;
+    color: #fff;
+}
+
+.pin-buttons button:focus,
+.manual-login-buttons button:focus {
+    outline: 2px solid #00A4DC;
+    outline-offset: 2px;
+}
+
+.pin-hint {
+    font-size: 0.9rem;
+    color: #888;
+    margin-top: 1rem;
+}
+
+/* Back button */
+#profileBackBtn {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    padding: 0.75rem 1.5rem;
+    background-color: #292929;
+    border: none;
+    border-radius: 0.3rem;
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#profileBackBtn:hover,
+#profileBackBtn:focus {
+    background-color: #00A4DC;
+    outline: none;
+}
+
+/* Quick Connect Card */
+.profile-card-quickconnect .profile-avatar-placeholder {
+    font-size: 2.5rem;
+    color: #666;
+}
+
+.profile-card-quickconnect:hover .profile-avatar-placeholder,
+.profile-card-quickconnect:focus .profile-avatar-placeholder {
+    color: #00A4DC;
+}
+
+/* Quick Connect Overlay */
+#quickConnectOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(16, 16, 16, 0.95);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.quickconnect-container {
+    background-color: #1a1a1a;
+    padding: 2.5rem 3rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    min-width: 450px;
+    max-width: 90%;
+}
+
+.quickconnect-container h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    font-weight: 400;
+}
+
+.quickconnect-code-wrapper {
+    background-color: #292929;
+    padding: 1.5rem 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#quickConnectCode {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #00A4DC;
+    letter-spacing: 0.5rem;
+    font-family: monospace;
+}
+
+#quickConnectStatus {
+    font-size: 1.1rem;
+    color: #888;
+    margin-bottom: 1.5rem;
+}
+
+#quickConnectError {
+    color: #ef5350;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+
+.quickconnect-instructions {
+    text-align: left;
+    background-color: #252525;
+    padding: 1rem 1.5rem;
+    border-radius: 0.3rem;
+    margin-bottom: 1.5rem;
+}
+
+.quickconnect-instructions p {
+    color: #aaa;
+    font-size: 0.95rem;
+    margin: 0.5rem 0;
+    line-height: 1.4;
+}
+
+.quickconnect-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.quickconnect-buttons button {
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #333;
+    color: #fff;
+}
+
+.quickconnect-buttons button:hover,
+.quickconnect-buttons button:focus {
+    background-color: #00A4DC;
+    outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1280px) {
+    .profile-card {
+        width: 150px;
+        padding: 1rem 0.75rem;
+    }
+
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+    }
+
+    .profile-name {
+        font-size: 1rem;
+    }
+
+    .quickconnect-container {
+        min-width: 350px;
+    }
+
+    #quickConnectCode {
+        font-size: 2.5rem;
+    }
+}
