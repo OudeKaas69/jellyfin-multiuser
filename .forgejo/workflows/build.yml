@@ -98,6 +98,8 @@ jobs:
         if: ${{ secrets.GH_MIRROR_TOKEN != '' }}
         shell: bash
         env:
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TOKEN: ${{ secrets.FORGEJO_TOKEN || github.token }}
           GH_MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
           GH_REPO: OudeKaas69/jellyfin-multiuser
         run: |
@@ -110,20 +112,43 @@ jobs:
             git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force 2>/dev/null || true
             git push --force "https://x-access-token:${GH_MIRROR_TOKEN}@github.com/${GH_REPO}.git" "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
 
+            fg_auth="Authorization: token ${TOKEN}"
+            fg_release_json=$(curl -fsS -H "$fg_auth" "${API}/releases/tags/${RELEASE_TAG}")
+
             gh_api="https://api.github.com/repos/${GH_REPO}"
             gh_auth="Authorization: Bearer ${GH_MIRROR_TOKEN}"
             gh_accept="Accept: application/vnd.github+json"
+
+            release_payload=$(printf '%s' "$fg_release_json" | TAG="$RELEASE_TAG" GH_REPO="$GH_REPO" node -e '
+              let d = "";
+              process.stdin.on("data", c => d += c).on("end", () => {
+                const fg = JSON.parse(d);
+                const ghUrl = "https://github.com/" + process.env.GH_REPO;
+                const rawBody = (fg.body || "").replace(/https:\/\/forgejo\.timsas\.nl\/tsas\/jellyfin-webos/g, ghUrl);
+                console.log(JSON.stringify({
+                  tag_name: process.env.TAG,
+                  name: fg.name || ("Jellyfin-Multiuser " + process.env.TAG),
+                  body: rawBody,
+                  draft: !!fg.draft,
+                  prerelease: !!fg.prerelease
+                }));
+              });
+            ')
 
             release_json=$(curl -sS -H "$gh_auth" -H "$gh_accept" "${gh_api}/releases/tags/${RELEASE_TAG}" || true)
             release_id=$(printf '%s' "$release_json" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);console.log(j.id||"")}catch(e){console.log("")}})')
 
             if [ -z "$release_id" ]; then
               echo "Creating GitHub release ${RELEASE_TAG}..."
-              create_payload=$(TAG="$RELEASE_TAG" node -e 'console.log(JSON.stringify({tag_name:process.env.TAG,name:"Jellyfin-Multiuser "+process.env.TAG,draft:false,prerelease:false}))')
               release_json=$(curl -fsS -X POST -H "$gh_auth" -H "$gh_accept" \
-                -d "$create_payload" \
+                -d "$release_payload" \
                 "${gh_api}/releases")
               release_id=$(printf '%s' "$release_json" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).id))')
+            else
+              echo "Updating GitHub release ${RELEASE_TAG} (${release_id}) notes & title..."
+              release_json=$(curl -fsS -X PATCH -H "$gh_auth" -H "$gh_accept" \
+                -d "$release_payload" \
+                "${gh_api}/releases/${release_id}")
             fi
 
             echo "GitHub Release ${RELEASE_TAG} has id ${release_id}"
