@@ -343,17 +343,39 @@ PROFILES.prototype.fetchUsers = function (baseurl, callback, errorCallback) {
 };
 
 /**
+ * Build and apply Jellyfin Authorization headers on an XMLHttpRequest.
+ * Sets both standard Authorization (required by Jellyfin 10.9+/10.12+) and
+ * legacy X-Emby-Authorization for backward compatibility.
+ */
+PROFILES.prototype.setAuthHeaders = function (xhr, token) {
+    var deviceName = (typeof appInfo !== 'undefined' && appInfo && appInfo.deviceName) ? appInfo.deviceName : 'LG Smart TV';
+    var deviceId = (typeof appInfo !== 'undefined' && appInfo && appInfo.deviceId) ? appInfo.deviceId : (typeof getDeviceId === 'function' ? getDeviceId() : 'lg-webos-tv');
+    var appVersion = (typeof appInfo !== 'undefined' && appInfo && appInfo.appVersion && appInfo.appVersion !== '0.0.0') ? appInfo.appVersion : '2.1.0';
+
+    var clean = function (val) {
+        return String(val || '').replace(/["\\\r\n]/g, '');
+    };
+
+    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + clean(deviceName) +
+        '", DeviceId="' + clean(deviceId) + '", Version="' + clean(appVersion) + '"';
+    if (token) {
+        authHeader += ', Token="' + clean(token) + '"';
+    }
+
+    xhr.setRequestHeader('Authorization', authHeader);
+    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+};
+
+/**
  * Authenticate user with password/PIN
  */
 PROFILES.prototype.authenticateUser = function (baseurl, userId, username, password, callback, errorCallback) {
     var self = this;
-    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + appInfo.deviceName +
-        '", DeviceId="' + appInfo.deviceId + '", Version="' + appInfo.appVersion + '"';
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', normalizeUrl(baseurl + '/Users/AuthenticateByName'));
     xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+    this.setAuthHeaders(xhr);
     xhr.timeout = 10000;
 
     xhr.onload = function () {
@@ -409,13 +431,9 @@ PROFILES.prototype.authenticateUser = function (baseurl, userId, username, passw
  * Validate an existing token
  */
 PROFILES.prototype.validateToken = function (baseurl, userId, token, callback, errorCallback) {
-    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + appInfo.deviceName +
-        '", DeviceId="' + appInfo.deviceId + '", Version="' + appInfo.appVersion +
-        '", Token="' + token + '"';
-
     var xhr = new XMLHttpRequest();
     xhr.open('GET', normalizeUrl(baseurl + '/Users/' + userId));
-    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+    this.setAuthHeaders(xhr, token);
     xhr.timeout = 10000;
 
     xhr.onload = function () {
@@ -2130,12 +2148,10 @@ PROFILES.prototype.checkQuickConnectEnabled = function (baseurl, callback) {
  */
 PROFILES.prototype.initiateQuickConnect = function (callback, errorCallback) {
     var self = this;
-    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + appInfo.deviceName +
-        '", DeviceId="' + appInfo.deviceId + '", Version="' + appInfo.appVersion + '"';
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', normalizeUrl(this.currentServer.baseurl + '/QuickConnect/Initiate'));
-    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+    this.setAuthHeaders(xhr);
     xhr.timeout = 10000;
 
     xhr.onload = function () {
@@ -2180,12 +2196,9 @@ PROFILES.prototype.pollQuickConnect = function (callback, errorCallback) {
         return;
     }
 
-    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + appInfo.deviceName +
-        '", DeviceId="' + appInfo.deviceId + '", Version="' + appInfo.appVersion + '"';
-
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', normalizeUrl(this.currentServer.baseurl + '/QuickConnect/Connect?secret=' + this.quickConnectSecret));
-    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+    xhr.open('GET', normalizeUrl(this.currentServer.baseurl + '/QuickConnect/Connect?secret=' + encodeURIComponent(this.quickConnectSecret)));
+    this.setAuthHeaders(xhr);
     xhr.timeout = 10000;
 
     xhr.onload = function () {
@@ -2222,13 +2235,10 @@ PROFILES.prototype.authenticateWithQuickConnect = function (callback, errorCallb
         return;
     }
 
-    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + appInfo.deviceName +
-        '", DeviceId="' + appInfo.deviceId + '", Version="' + appInfo.appVersion + '"';
-
     var xhr = new XMLHttpRequest();
     xhr.open('POST', normalizeUrl(this.currentServer.baseurl + '/Users/AuthenticateWithQuickConnect'));
     xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
+    this.setAuthHeaders(xhr);
     xhr.timeout = 10000;
 
     xhr.onload = function () {
