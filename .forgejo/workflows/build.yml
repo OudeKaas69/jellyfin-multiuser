@@ -34,6 +34,12 @@ jobs:
           set -euo pipefail
           npm ci || npm install
 
+      - name: Validate ES5 syntax, generated scripts & package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+
       - name: Build IPK package
         shell: bash
         run: |
