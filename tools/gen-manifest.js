@@ -16,10 +16,11 @@ fs.writeFileSync(
     type: appinfo.type,
     title: appinfo.title,
     appDescription: appinfo.appDescription,
-    iconUri: 'https://github.com/jellyfin/jellyfin-webos/raw/master/org.jellyfin.webos/submission-icon.png',
-    sourceUrl: 'https://forgejo.timsas.nl/tsas/jellyfin-webos',
+    iconUri: 'https://raw.githubusercontent.com/OudeKaas69/jellyfin-multiuser/master/frontend/assets/icon-160.png',
+    sourceUrl: 'https://github.com/OudeKaas69/jellyfin-multiuser',
     rootRequired: false,
     ipkUrl: ipkfile,
+    ipkSize: fs.statSync(`build/${ipkfile}`).size,
     ipkHash: {
       sha256: ipkhash,
     },

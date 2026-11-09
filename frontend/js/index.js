@@ -12,7 +12,7 @@ var manifest = false;
 var appInfo = {
     deviceId: null,
     deviceName: 'LG Smart TV',
-    appName: 'Jellyfin for WebOS',
+    appName: 'Jellyfin-Multiuser',
     appVersion: '0.0.0'
 };
 
@@ -1190,7 +1190,7 @@ function startDiscovery() {
         return;
     }
     console.log("Starting server autodiscovery...");
-    discover = webOS.service.request("luna://org.jellyfin.webos.service", {
+    discover = webOS.service.request("luna://nl.timsas.jellyfin.multiuser.service", {
         method: "discover",
         parameters: {
             uniqueToken: 'fooo'

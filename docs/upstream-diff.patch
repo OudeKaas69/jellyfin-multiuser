@@ -1,0 +1,4696 @@
+diff --git a/frontend/appinfo.json b/frontend/appinfo.json
+index 76cec44..cf8f0fc 100644
+--- a/frontend/appinfo.json
++++ b/frontend/appinfo.json
+@@ -1,16 +1,16 @@
+ {
+-    "appDescription": "A webOS client to connect to a Jellyfin Server instance and stream media.",
++    "appDescription": "Multi-user Jellyfin client with profile switcher and PIN protection",
+     "icon": "assets/icon-80.png",
+     "main": "index.html",
+     "bgImage": "assets/splash.png",
+-    "title": "Jellyfin",
++    "title": "Jellyfin-Multiuser",
+     "type": "web",
+-    "version": "1.2.2",
++    "version": "1.0.0",
+     "splashBackground": "assets/splash.png",
+     "bgColor": "#000b25",
+-    "vendor": "Jellyfin Project",
++    "vendor": "Tim Sas / Jellyfin Project",
+     "largeIcon": "assets/icon-130.png",
+     "iconColor": "#000b25",
+-    "id": "org.jellyfin.webos",
++    "id": "nl.timsas.jellyfin.multiuser",
+     "disableBackHistoryAPI": true
+ }
+diff --git a/frontend/assets/icon-130.png b/frontend/assets/icon-130.png
+index e8e79d6..20f7229 100644
+Binary files a/frontend/assets/icon-130.png and b/frontend/assets/icon-130.png differ
+diff --git a/frontend/assets/icon-80.png b/frontend/assets/icon-80.png
+index f52e687..e67ddd0 100644
+Binary files a/frontend/assets/icon-80.png and b/frontend/assets/icon-80.png differ
+diff --git a/frontend/css/profiles.css b/frontend/css/profiles.css
+new file mode 100644
+index 0000000..f719839
+--- /dev/null
++++ b/frontend/css/profiles.css
+@@ -0,0 +1,763 @@
++/*
++ * This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
++ *
++ * Profile selection screen styles
++ */
++
++#profileSelection {
++    position: absolute;
++    top: 0;
++    left: 0;
++    width: 100%;
++    height: 100%;
++    background-color: #101010;
++    display: none;
++    flex-direction: column;
++    align-items: center;
++    justify-content: center;
++    z-index: 100;
++}
++
++#profileSelection h1 {
++    font-size: 2.5rem;
++    margin-bottom: 1.5rem;
++    color: #fff;
++    font-weight: 300;
++}
++
++#profileGrid {
++    display: flex;
++    flex-wrap: wrap;
++    justify-content: center;
++    align-items: flex-start;
++    max-width: 80%;
++    gap: 2rem;
++    padding: 1rem;
++}
++
++.profile-column {
++    display: flex;
++    flex-direction: column;
++    align-items: center;
++    gap: 0.6rem;
++    width: 180px;
++    box-sizing: border-box;
++}
++
++.profile-sub-actions {
++    display: none;
++    flex-direction: column;
++    gap: 0.4rem;
++    width: 100%;
++    box-sizing: border-box;
++}
++
++.profile-column.is-selected .profile-sub-actions {
++    display: flex;
++}
++
++.profile-column.is-selected:not(.has-actions) .profile-sub-actions {
++    display: none;
++}
++
++.profile-column.is-selected.has-actions .profile-sub-actions {
++    display: flex;
++    padding: 0.5rem 0.6rem 0;
++    border-top: 1px solid #2c2c2c;
++    gap: 0.35rem;
++}
++
++.profile-column.is-selected.has-actions {
++    background: #1a1a1a;
++    border: 3px solid #00A4DC;
++    border-radius: 0.6rem;
++    box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.25);
++    gap: 0;
++    padding-bottom: 0.6rem;
++    overflow: hidden;
++}
++
++.profile-sub-actions-title {
++    font-size: 0.75rem;
++    color: #9a9a9a;
++    text-align: left;
++    margin-bottom: 0.15rem;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.profile-action-btn {
++    width: 100%;
++    margin: 0;
++    padding: 0.45rem 0.75rem;
++    font-size: 0.85rem;
++    font-weight: 500;
++    text-align: left;
++    background-color: #262626;
++    color: #ddd;
++    border: 2px solid transparent;
++    border-radius: 0.3rem;
++    cursor: pointer;
++    transition: all 0.15s ease;
++    outline: none;
++    box-sizing: border-box;
++}
++
++.profile-action-auto.is-on {
++    border-color: #00A4DC;
++    color: #00A4DC;
++}
++
++.profile-action-btn:hover,
++.profile-action-btn:focus,
++.profile-action-auto.is-on:hover,
++.profile-action-auto.is-on:focus {
++    border-color: #00A4DC;
++    background-color: #00A4DC;
++    color: #fff;
++    outline: none;
++}
++
++.profile-action-btn-danger:hover,
++.profile-action-btn-danger:focus {
++    background-color: #c62828;
++    border-color: #ff8a80;
++    color: #fff;
++}
++
++.profile-card {
++    display: flex;
++    flex-direction: column;
++    align-items: center;
++    width: 180px;
++    padding: 1.5rem 1rem;
++    background-color: #1a1a1a;
++    border-radius: 0.5rem;
++    cursor: pointer;
++    transition: all 0.2s ease-in-out;
++    outline: none;
++    border: 3px solid transparent;
++    position: relative;
++    box-sizing: border-box;
++}
++
++.profile-card:hover,
++.profile-card:focus {
++    background-color: #252525;
++    border-color: #00A4DC;
++    transform: scale(1.05);
++}
++
++.profile-card:focus {
++    box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
++}
++
++.profile-column.is-selected.has-actions .profile-card,
++.profile-column.is-selected.has-actions .profile-card:hover {
++    width: 100%;
++    border-color: transparent;
++    transform: none;
++    box-shadow: none;
++    border-radius: 0;
++}
++
++.profile-column.is-selected.has-actions .profile-card:focus {
++    width: 100%;
++    background-color: #252525;
++    border-color: transparent;
++    transform: none;
++    border-radius: 0;
++    box-shadow: inset 0 0 0 2px #00A4DC;
++}
++
++.profile-avatar {
++    width: 120px;
++    height: 120px;
++    border-radius: 50%;
++    overflow: hidden;
++    margin-bottom: 1rem;
++    background-color: #292929;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++}
++
++.profile-avatar img {
++    width: 100%;
++    height: 100%;
++    object-fit: cover;
++}
++
++.profile-avatar-placeholder {
++    font-size: 3rem;
++    color: #00A4DC;
++    font-weight: bold;
++}
++
++.profile-card-add .profile-avatar-placeholder {
++    font-size: 4rem;
++    color: #666;
++}
++
++.profile-card-add:hover .profile-avatar-placeholder,
++.profile-card-add:focus .profile-avatar-placeholder {
++    color: #00A4DC;
++}
++
++.profile-name {
++    font-size: 1.2rem;
++    color: #fff;
++    text-align: center;
++    max-width: 100%;
++    overflow: hidden;
++    text-overflow: ellipsis;
++    white-space: nowrap;
++}
++
++.profile-lock {
++    position: absolute;
++    top: 0.6rem;
++    right: 0.6rem;
++    width: 30px;
++    height: 30px;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    border-radius: 50%;
++    background: rgba(0, 164, 220, 0.15);
++    color: #00A4DC;
++    opacity: 1;
++    font-size: 0;
++    line-height: 0;
++}
++
++.profile-card:focus .profile-lock {
++    background: #00A4DC;
++    color: #fff;
++}
++
++.profile-remembered {
++    font-size: 0.75rem;
++    color: #00A4DC;
++    margin-top: 0.5rem;
++}
++
++#profileServerName {
++    font-size: 1rem;
++    color: #888;
++    margin-bottom: 2rem;
++}
++
++#profileError {
++    position: fixed;
++    bottom: 2rem;
++    left: 50%;
++    transform: translateX(-50%);
++    background-color: #c62828;
++    color: #fff;
++    padding: 1rem 2rem;
++    border-radius: 0.5rem;
++    display: none;
++    z-index: 200;
++}
++
++#profileLoading {
++    position: fixed;
++    top: 0;
++    left: 0;
++    width: 100%;
++    height: 100%;
++    background-color: rgba(16, 16, 16, 0.9);
++    display: none;
++    align-items: center;
++    justify-content: center;
++    z-index: 150;
++}
++
++#profileLoading .spinner {
++    width: 60px;
++    height: 60px;
++    border: 4px solid #333;
++    border-top-color: #00A4DC;
++    border-radius: 50%;
++    animation: spin 1s linear infinite;
++}
++
++@keyframes spin {
++    to {
++        transform: rotate(360deg);
++    }
++}
++
++/* PIN Entry Overlay */
++#pinOverlay,
++#manualLoginOverlay {
++    position: fixed;
++    top: 0;
++    left: 0;
++    width: 100%;
++    height: 100%;
++    background-color: rgba(16, 16, 16, 0.95);
++    display: none;
++    flex-direction: column;
++    align-items: center;
++    justify-content: center;
++    z-index: 200;
++}
++
++.pin-container,
++.manual-login-container {
++    background-color: #1a1a1a;
++    padding: 2.5rem;
++    border-radius: 0.5rem;
++    text-align: center;
++    min-width: 400px;
++}
++
++.pin-container h2,
++.manual-login-container h2 {
++    font-size: 1.5rem;
++    margin-bottom: 0.5rem;
++    color: #fff;
++    font-weight: 400;
++}
++
++#pinUserName {
++    font-size: 1.2rem;
++    color: #00A4DC;
++    margin-bottom: 1.5rem;
++}
++
++#pinInput,
++#manualUsername,
++#manualPassword {
++    width: 100%;
++    padding: 1rem;
++    font-size: 1.5rem;
++    text-align: center;
++    background-color: #292929;
++    border: 2px solid #333;
++    border-radius: 0.3rem;
++    color: #fff;
++    margin-bottom: 1rem;
++    transition: border-color 0.2s;
++    box-sizing: border-box;
++}
++
++#pinInput:focus,
++#manualUsername:focus,
++#manualPassword:focus {
++    outline: none;
++    border-color: #00A4DC;
++}
++
++#manualUsername[readonly],
++#manualPassword[readonly],
++#pinInput[readonly] {
++    cursor: pointer;
++}
++
++#pinError,
++#manualLoginError {
++    color: #ef5350;
++    font-size: 1rem;
++    margin-bottom: 1rem;
++    display: none;
++}
++
++.pin-buttons,
++.manual-login-buttons {
++    display: flex;
++    gap: 1rem;
++    justify-content: center;
++    margin-top: 1rem;
++}
++
++.pin-buttons button,
++.manual-login-buttons button {
++    width: auto;
++    margin: 0;
++    padding: 0.75rem 2rem;
++    font-size: 1rem;
++    border: none;
++    border-radius: 0.3rem;
++    cursor: pointer;
++    transition: all 0.2s;
++}
++
++.pin-buttons button:first-child,
++.manual-login-buttons button:first-child {
++    background-color: #00A4DC;
++    color: #fff;
++}
++
++.pin-buttons button:last-child,
++.manual-login-buttons button:last-child {
++    background-color: #333;
++    color: #fff;
++}
++
++.pin-buttons button:focus,
++.manual-login-buttons button:focus {
++    outline: 2px solid #00A4DC;
++    outline-offset: 2px;
++}
++
++.manual-qc-divider {
++    color: #888;
++    font-size: 0.9rem;
++    margin-top: 0.75rem;
++}
++
++.manual-qc-btn {
++    width: 100%;
++    margin: 0.75rem 0 0 0;
++    padding: 0.75rem 1.5rem;
++    font-size: 1rem;
++    background-color: #292929;
++    color: #ddd;
++    border: 2px solid #444;
++    border-radius: 0.3rem;
++    cursor: pointer;
++    transition: all 0.2s;
++    box-sizing: border-box;
++}
++
++.manual-qc-btn:hover,
++.manual-qc-btn:focus {
++    outline: none;
++    border-color: #00A4DC;
++    background-color: #333;
++    color: #fff;
++    box-shadow: 0 0 0 2px rgba(0, 164, 220, 0.35);
++}
++
++.pin-hint {
++    font-size: 0.9rem;
++    color: #888;
++    margin-top: 1rem;
++}
++
++/* Back button */
++#profileBackBtn {
++    position: absolute;
++    top: 2rem;
++    left: 2rem;
++    width: auto;
++    margin: 0;
++    padding: 0.75rem 1.5rem;
++    background-color: #292929;
++    border: none;
++    border-radius: 0.3rem;
++    color: #fff;
++    font-size: 1rem;
++    line-height: 1.2;
++    display: inline-flex;
++    align-items: center;
++    cursor: pointer;
++    transition: all 0.2s;
++}
++
++#profileBackBtn:hover,
++#profileBackBtn:focus {
++    background-color: #00A4DC;
++    outline: none;
++}
++
++/* Quick Connect Overlay */
++#quickConnectOverlay {
++    position: fixed;
++    top: 0;
++    left: 0;
++    width: 100%;
++    height: 100%;
++    background-color: rgba(16, 16, 16, 0.95);
++    display: none;
++    flex-direction: column;
++    align-items: center;
++    justify-content: center;
++    z-index: 200;
++}
++
++.quickconnect-container {
++    background-color: #1a1a1a;
++    padding: 2.5rem 3rem;
++    border-radius: 0.5rem;
++    text-align: center;
++    min-width: 450px;
++    max-width: 90%;
++}
++
++.quickconnect-container h2 {
++    font-size: 1.8rem;
++    margin-bottom: 1.5rem;
++    color: #fff;
++    font-weight: 400;
++}
++
++.quickconnect-code-wrapper {
++    background-color: #292929;
++    padding: 1.5rem 2rem;
++    border-radius: 0.5rem;
++    margin-bottom: 1rem;
++}
++
++#quickConnectCode {
++    font-size: 3rem;
++    font-weight: bold;
++    color: #00A4DC;
++    letter-spacing: 0.5rem;
++    font-family: monospace;
++}
++
++#quickConnectStatus {
++    font-size: 1.1rem;
++    color: #888;
++    margin-bottom: 1.5rem;
++}
++
++#quickConnectError {
++    color: #ef5350;
++    font-size: 1rem;
++    margin-bottom: 1rem;
++    display: none;
++}
++
++.quickconnect-instructions {
++    text-align: left;
++    background-color: #252525;
++    padding: 1rem 1.5rem;
++    border-radius: 0.3rem;
++    margin-bottom: 1.5rem;
++}
++
++.quickconnect-instructions p {
++    color: #aaa;
++    font-size: 0.95rem;
++    margin: 0.5rem 0;
++    line-height: 1.4;
++}
++
++.quickconnect-buttons {
++    display: flex;
++    gap: 1rem;
++    justify-content: center;
++}
++
++.quickconnect-buttons button {
++    width: auto;
++    margin: 0;
++    padding: 0.75rem 2rem;
++    font-size: 1rem;
++    border: none;
++    border-radius: 0.3rem;
++    cursor: pointer;
++    transition: all 0.2s;
++    background-color: #333;
++    color: #fff;
++}
++
++.quickconnect-buttons button:hover,
++.quickconnect-buttons button:focus {
++    background-color: #00A4DC;
++    outline: none;
++}
++
++/* Numeric PIN Pad Overlay */
++#numericPinOverlay {
++    position: fixed;
++    top: 0;
++    left: 0;
++    width: 100%;
++    height: 100%;
++    background-color: rgba(16, 16, 16, 0.96);
++    display: none;
++    flex-direction: column;
++    align-items: center;
++    justify-content: center;
++    z-index: 300;
++}
++
++.num-pin-container {
++    background-color: #1a1a1a;
++    padding: 2rem 2.5rem;
++    border-radius: 0.75rem;
++    text-align: center;
++    min-width: 380px;
++    max-width: 90%;
++    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
++}
++
++#numPinTitle {
++    font-size: 1.6rem;
++    margin: 0 0 0.4rem 0;
++    color: #fff;
++    font-weight: 400;
++}
++
++#numPinSubtitle {
++    font-size: 1rem;
++    color: #00A4DC;
++    margin-bottom: 1.25rem;
++    min-height: 1.2rem;
++}
++
++#numPinDots {
++    display: flex;
++    justify-content: center;
++    gap: 1rem;
++    margin-bottom: 1rem;
++}
++
++.num-pin-dot {
++    width: 18px;
++    height: 18px;
++    border-radius: 50%;
++    border: 2px solid #555;
++    background-color: transparent;
++    transition: all 0.15s ease;
++}
++
++.num-pin-dot.filled {
++    background-color: #00A4DC;
++    border-color: #00A4DC;
++    transform: scale(1.1);
++}
++
++@keyframes numPinShake {
++    0%, 100% { transform: translateX(0); }
++    20%, 60% { transform: translateX(-8px); }
++    40%, 80% { transform: translateX(8px); }
++}
++
++#numPinDots.shake {
++    animation: numPinShake 0.35s ease;
++}
++
++#numPinError {
++    color: #ef5350;
++    font-size: 0.95rem;
++    min-height: 1.2rem;
++    margin-bottom: 0.75rem;
++    display: none;
++}
++
++#numPinPad {
++    display: grid;
++    grid-template-columns: repeat(3, 88px);
++    grid-gap: 0.75rem;
++    justify-content: center;
++    margin: 0.5rem auto 1.25rem auto;
++}
++
++.num-pin-key {
++    width: 88px;
++    height: 64px;
++    margin: 0;
++    font-size: 1.6rem;
++    font-weight: 500;
++    color: #fff;
++    background-color: #292929;
++    border: 2px solid transparent;
++    border-radius: 0.5rem;
++    cursor: pointer;
++    transition: all 0.15s ease;
++    outline: none;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++}
++
++.num-pin-key-fn {
++    font-size: 1.25rem;
++    color: #bbb;
++    background-color: #222;
++}
++
++.num-pin-key:hover,
++.num-pin-key:focus {
++    background-color: #333;
++    border-color: #00A4DC;
++    box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.35);
++    color: #fff;
++    transform: scale(1.04);
++}
++
++#numPinActions {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 0.75rem;
++    justify-content: center;
++    margin-top: 0.5rem;
++}
++
++.num-pin-action {
++    width: auto;
++    margin: 0;
++    padding: 0.65rem 1.25rem;
++    font-size: 0.95rem;
++    border: 2px solid transparent;
++    border-radius: 0.4rem;
++    cursor: pointer;
++    background-color: #333;
++    color: #fff;
++    transition: all 0.15s ease;
++    outline: none;
++}
++
++.num-pin-action-primary {
++    border-color: rgba(0, 164, 220, 0.65);
++    background-color: #22353f;
++}
++
++.num-pin-action-danger {
++    background-color: #4a1f1f;
++    color: #ffcdd2;
++}
++
++.num-pin-action:hover,
++.num-pin-action:focus {
++    border-color: #00A4DC;
++    box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.35);
++    background-color: #00A4DC;
++    color: #fff;
++}
++
++.num-pin-action-danger:hover,
++.num-pin-action-danger:focus {
++    background-color: #c62828;
++    border-color: #ff8a80;
++    color: #fff;
++}
++
++/* Responsive adjustments */
++@media (max-width: 1280px) {
++    .profile-column {
++        width: 150px;
++    }
++
++    .profile-card {
++        width: 150px;
++        padding: 1rem 0.75rem;
++    }
++
++    .profile-avatar {
++        width: 100px;
++        height: 100px;
++    }
++
++    .profile-name {
++        font-size: 1rem;
++    }
++
++    .quickconnect-container {
++        min-width: 350px;
++    }
++
++    #quickConnectCode {
++        font-size: 2.5rem;
++    }
++}
+diff --git a/frontend/index.html b/frontend/index.html
+index 8bcd074..64b5045 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -9,10 +9,12 @@
+ 	<meta charset="UTF-8" />
+ 	<title>Jellyfin for webOS</title>
+ 	<link rel="stylesheet" href="css/main.css" type="text/css"/>
++	<link rel="stylesheet" href="css/profiles.css" type="text/css"/>
+ 	<script src="webOSTVjs-1.2.11/webOSTV.js" charset="utf-8"></script>
+ 	<script src="webOSTVjs-1.2.11/webOSTV-dev.js" charset="utf-8"></script>
+ 	<script src="js/ajax.js" charset="utf-8"></script>
+ 	<script src="js/storage.js" charset="utf-8"></script>
++	<script src="js/profiles.js" charset="utf-8"></script>
+ 	<script src="js/index.js"></script>
+ </head>
+ 
+@@ -41,6 +43,110 @@
+ 			<button id="abort" onclick="abort();">Abort</button>
+ 		</div>
+ 	</div>
++
++	<!-- Profile Selection Screen -->
++	<div id="profileSelection">
++		<button id="profileBackBtn" onclick="profiles.goBack();">&#8592; Back</button>
++		<h1>Who's watching?</h1>
++		<div id="profileServerName"></div>
++		<div id="profileGrid"></div>
++		<div id="profileError"></div>
++		<div id="profileLoading">
++			<div class="spinner"></div>
++		</div>
++	</div>
++
++	<!-- PIN Entry Overlay -->
++	<div id="pinOverlay">
++		<div class="pin-container">
++			<h2>Enter Password</h2>
++			<div id="pinUserName"></div>
++			<div id="pinError"></div>
++			<input type="password" id="pinInput" placeholder="Password" autocomplete="off" />
++			<div class="pin-buttons">
++				<button onclick="profiles.submitPin();">Sign In</button>
++				<button onclick="profiles.hidePinEntry();">Cancel</button>
++			</div>
++			<div class="pin-hint">Press OK to type · Back to cancel</div>
++		</div>
++	</div>
++
++	<!-- Manual Login Overlay -->
++	<div id="manualLoginOverlay">
++		<div class="manual-login-container">
++			<h2>Sign In</h2>
++			<div id="manualLoginError"></div>
++			<input type="text" id="manualUsername" placeholder="Username" autocomplete="off" />
++			<input type="password" id="manualPassword" placeholder="Password" autocomplete="off" />
++			<div class="manual-login-buttons">
++				<button type="button" onclick="profiles.submitManualLogin();">Sign In</button>
++				<button type="button" onclick="profiles.hideManualLogin();">Cancel</button>
++			</div>
++			<div id="manualQuickConnectDivider" class="manual-qc-divider" style="display: none;">or</div>
++			<button id="manualQuickConnectBtn" type="button" class="manual-qc-btn" style="display: none;" onclick="profiles.hideManualLogin(); profiles.showQuickConnect();">Use Quick Connect</button>
++			<div class="pin-hint">Press OK to type · Back to cancel</div>
++		</div>
++	</div>
++
++	<!-- Quick Connect Overlay -->
++	<div id="quickConnectOverlay">
++		<div class="quickconnect-container">
++			<h2>Quick Connect</h2>
++			<div class="quickconnect-code-wrapper">
++				<div id="quickConnectCode">------</div>
++			</div>
++			<div id="quickConnectStatus">Generating code...</div>
++			<div id="quickConnectError"></div>
++			<div class="quickconnect-instructions">
++				<p>1. Open Jellyfin on another device where you're signed in</p>
++				<p>2. Go to Settings &rarr; Quick Connect</p>
++				<p>3. Enter the code shown above</p>
++			</div>
++			<div class="quickconnect-buttons">
++				<button onclick="profiles.hideQuickConnect();">Cancel</button>
++			</div>
++			<div class="pin-hint">Press Back to cancel</div>
++		</div>
++	</div>
++
++	<!-- Numeric PIN Pad Overlay -->
++	<div id="numericPinOverlay">
++		<div class="num-pin-container">
++			<h2 id="numPinTitle">Enter PIN</h2>
++			<div id="numPinSubtitle"></div>
++			<div id="numPinDots">
++				<span class="num-pin-dot"></span>
++				<span class="num-pin-dot"></span>
++				<span class="num-pin-dot"></span>
++				<span class="num-pin-dot"></span>
++			</div>
++			<div id="numPinError"></div>
++			<div id="numPinPad">
++				<button type="button" class="num-pin-key" data-key="1">1</button>
++				<button type="button" class="num-pin-key" data-key="2">2</button>
++				<button type="button" class="num-pin-key" data-key="3">3</button>
++				<button type="button" class="num-pin-key" data-key="4">4</button>
++				<button type="button" class="num-pin-key" data-key="5">5</button>
++				<button type="button" class="num-pin-key" data-key="6">6</button>
++				<button type="button" class="num-pin-key" data-key="7">7</button>
++				<button type="button" class="num-pin-key" data-key="8">8</button>
++				<button type="button" class="num-pin-key" data-key="9">9</button>
++				<button type="button" class="num-pin-key num-pin-key-fn" data-key="clear">C</button>
++				<button type="button" class="num-pin-key" data-key="0">0</button>
++				<button type="button" class="num-pin-key num-pin-key-fn" data-key="back">&#9003;</button>
++			</div>
++			<div id="numPinActions">
++				<button type="button" id="numPinSingleUser" class="num-pin-action num-pin-action-primary">Skip PIN &middot; Single user (auto sign-in)</button>
++				<button type="button" id="numPinMultiUser" class="num-pin-action">Skip PIN &middot; Multi-user</button>
++				<button type="button" id="numPinSkip" class="num-pin-action">Skip / No PIN</button>
++				<button type="button" id="numPinRemove" class="num-pin-action num-pin-action-danger">Remove PIN</button>
++				<button type="button" id="numPinForget" class="num-pin-action num-pin-action-danger">Forget profile</button>
++				<button type="button" id="numPinCancel" class="num-pin-action">Cancel</button>
++			</div>
++			<div class="pin-hint">Use remote numbers or D-pad &bull; Back to cancel</div>
++		</div>
++	</div>
++
+ 	<iframe id="contentFrame" style="display: none;"></iframe>
+ </body>
+ 
+diff --git a/frontend/js/index.js b/frontend/js/index.js
+index af47110..19c95f1 100644
+--- a/frontend/js/index.js
++++ b/frontend/js/index.js
+@@ -12,10 +12,14 @@ var manifest = false;
+ var appInfo = {
+     deviceId: null,
+     deviceName: 'LG Smart TV',
+-    appName: 'Jellyfin for WebOS',
++    appName: 'Jellyfin-Multiuser',
+     appVersion: '0.0.0'
+ };
+ 
++// Store authenticated user info for handoff
++var authenticatedUser = null;
++var authToken = null;
++
+ var deviceInfo;
+ webOS.deviceInfo(function (info) {
+     deviceInfo = info;
+@@ -57,13 +61,13 @@ function navigate(amount) {
+         navigationInit();
+     } else {
+         //Isolate the node that we're after
+-        const currentNode = element;
++        var currentNode = element;
+ 
+         //find all tab-able elements
+-        const allElements = document.querySelectorAll('input, button, a, area, object, select, textarea, [contenteditable]');
++        var allElements = document.querySelectorAll('input, button, a, area, object, select, textarea, [contenteditable]');
+ 
+         //Find the current tab index.
+-        const currentIndex = findIndex(allElements, currentNode);
++        var currentIndex = findIndex(allElements, currentNode);
+ 
+         //focus the following element
+         if (allElements[currentIndex + amount])
+@@ -87,24 +91,95 @@ function rightArrowPressed() {
+     // Your stuff here
+ }
+ 
++function isElementDisplayed(el) {
++    if (!el) return false;
++    if (el.style && el.style.display === 'flex') return true;
++    if (el.style && el.style.display === 'none') return false;
++    if (window.getComputedStyle) {
++        var disp = window.getComputedStyle(el).display;
++        return disp !== 'none' && disp !== '';
++    }
++    return isVisible(el);
++}
++
++function isAnyProfileOrOverlayDisplayed() {
++    var profileSelection = document.getElementById('profileSelection');
++    var numericPinOverlay = document.getElementById('numericPinOverlay');
++    var manualLoginOverlay = document.getElementById('manualLoginOverlay');
++    var quickConnectOverlay = document.getElementById('quickConnectOverlay');
++    var pinOverlay = document.getElementById('pinOverlay');
++
++    return isElementDisplayed(profileSelection) ||
++        isElementDisplayed(numericPinOverlay) ||
++        isElementDisplayed(manualLoginOverlay) ||
++        isElementDisplayed(quickConnectOverlay) ||
++        isElementDisplayed(pinOverlay);
++}
++
+ function backPressed() {
++    // Check if profile selection or overlays are visible
++    var profileSelection = document.getElementById('profileSelection');
++    var numericPinOverlay = document.getElementById('numericPinOverlay');
++    var pinOverlay = document.getElementById('pinOverlay');
++    var manualLoginOverlay = document.getElementById('manualLoginOverlay');
++    var quickConnectOverlay = document.getElementById('quickConnectOverlay');
++
++    if (numericPinOverlay && numericPinOverlay.style.display === 'flex') {
++        profiles.hideNumericPin();
++        if (profileSelection) {
++            profiles.showProfileSelection();
++        }
++        return;
++    }
++
++    if (quickConnectOverlay && quickConnectOverlay.style.display === 'flex') {
++        profiles.hideQuickConnect();
++        return;
++    }
++
++    if (pinOverlay && pinOverlay.style.display === 'flex') {
++        profiles.hidePinEntry();
++        return;
++    }
++
++    if (manualLoginOverlay && manualLoginOverlay.style.display === 'flex') {
++        profiles.hideManualLogin();
++        return;
++    }
++
++    if (profileSelection && profileSelection.style.display === 'flex') {
++        profiles.goBack();
++        return;
++    }
++
+     webOS.platformBack();
+ }
+ 
+ document.onkeydown = function (evt) {
+     evt = evt || window.event;
++    var container = document.querySelector('.container');
++    var canNavigateServerScreen = container && isVisible(container) && !isAnyProfileOrOverlayDisplayed();
++
+     switch (evt.keyCode) {
+         case 37:
+-            leftArrowPressed();
++            if (canNavigateServerScreen) {
++                leftArrowPressed();
++            }
+             break;
+         case 39:
+-            rightArrowPressed();
++            if (canNavigateServerScreen) {
++                rightArrowPressed();
++            }
+             break;
+         case 38:
+-            upArrowPressed();
++            if (canNavigateServerScreen) {
++                upArrowPressed();
++            }
+             break;
+         case 40:
+-            downArrowPressed();
++            if (canNavigateServerScreen) {
++                downArrowPressed();
++            }
+             break;
+         case 461: // Back
+             backPressed();
+@@ -294,19 +369,21 @@ function handleSuccessServerInfo(data, baseurl, auto_connect) {
+                 displayError("The server ID has changed since the last connection, please check if you are reaching your own server. To connect anyway, click connect again.");
+                 delete connected_servers[server_id]
+                 connected_servers[data.Id] = ({ 'baseurl': baseurl, 'auto_connect': false, 'id': false })
+-                storage.set('connected_server', connected_servers)
++                storage.set('connected_servers', connected_servers)  // Fixed: was 'connected_server' (typo)
+                 return false
+             }
+         }
+     }
+ 
+ 
+-    connected_servers = lruStrategy(connected_servers,4, { 'baseurl': baseurl, 'auto_connect': auto_connect, 'id': data.Id, 'Name':data.ServerName })
++    server_info = data;
++
++    connected_servers = lruStrategy(connected_servers, 4, { 'baseurl': baseurl, 'auto_connect': auto_connect, 'id': data.Id, 'Id': data.Id, 'Name': data.ServerName });
+ 
+     storage.set('connected_servers', connected_servers);
+ 
+ 
+-    getManifest(baseurl)
++    getManifest(baseurl);
+     return true;
+ }
+ 
+@@ -333,38 +410,97 @@ function handleSuccessManifest(data, baseurl) {
+ 
+     curr_req = false;
+ 
++    // Try to find existing server entry by baseurl
++    var serverInfo = null;
+     for (var server_id in connected_servers) {
+-        var info = connected_servers[server_id]
+-        if (info['baseurl' ] == baseurl) {
+-            info['hosturl'] = hosturl
+-            info['Address'] = info['Address'] || baseurl
+-
+-            storage.set('connected_servers', connected_servers)
+-            console.log("martin:handleSuccessManifest modified server");
++        var info = connected_servers[server_id];
++        if (info && info.baseurl == baseurl) {
++            // update hosturl/address and use this entry
++            info.hosturl = hosturl;
++            info.Address = info.Address || baseurl;
++            storage.set('connected_servers', connected_servers);
++            console.log("handleSuccessManifest modified server");
+             console.log(info);
+-
+-        // avoid Promise as it's buggy in some WebOS
+-            getTextToInject(function (bundle) {
+-                handoff(hosturl, bundle);
+-            }, function (error) {
+-                console.error(error);
+-                displayError(error);
+-                hideConnecting();
+-                curr_req = false;
+-            });
+-            return;
++            serverInfo = info;
++            break;
+         }
+     }
+-    //no id, unshoft generates unique(?) index
+-    connected_servers.unshift({
+-        'baseurl': baseurl,
+-        'hosturl': hosturl,
+-        'Name': data.shortname,
+-        'Address': new URL(baseurl).hostname.slice(0,8),
+-    })
+-    storage.set('connected_server', servers)
+-    console.log("martin:handleSuccessManifest added server");
+-    console.log(info);
++
++    if (!serverInfo) {
++        var resolvedId = (server_info && server_info.Id) ? server_info.Id : baseurl;
++        var hostPart = baseurl.replace(/^https?:\/\//i, '').split('/')[0].slice(0, 8);
++        // Build a minimal serverInfo object to use for profile selection
++        serverInfo = {
++            id: resolvedId, // fallback id = baseurl when real id is not available
++            Id: resolvedId,
++            baseurl: baseurl,
++            hosturl: hosturl,
++            Name: (server_info && server_info.ServerName) || data.shortname || baseurl,
++            Address: hostPart
++        };
++
++        // Save into connected_servers using fallback id
++        connected_servers = connected_servers || {};
++        connected_servers[serverInfo.id] = serverInfo;
++        storage.set('connected_servers', connected_servers);
++        console.log("handleSuccessManifest added server");
++        console.log(serverInfo);
++    }
++
++    // Start profile selection flow instead of direct handoff
++    // Allow auto sign-in on startup if configured for a profile
++    startProfileSelection(serverInfo, { forceShowSelection: false, allowAutoSignIn: true });
++}
++
++/**
++ * Start the profile selection flow
++ */
++function startProfileSelection(serverInfo, options) {
++    // Update server name display
++    var serverNameElem = document.getElementById('profileServerName');
++    if (serverNameElem) {
++        serverNameElem.textContent = serverInfo.Name || serverInfo.Address || serverInfo.baseurl;
++    }
++
++    options = options || {};
++
++    profiles.init(serverInfo, function (user, token) {
++        authenticatedUser = user;
++        authToken = token;
++
++        // After authentication, the server ID may have been updated to the real ServerId
++        // Update connected_servers with the correct ID for future use
++        if (profiles.currentServer && profiles.currentServer.id) {
++            var oldId = serverInfo.id;
++            var newId = profiles.currentServer.id;
++            
++            if (oldId !== newId) {
++                console.log('Server ID updated from', oldId, 'to', newId);
++                // Remove old entry and add with new ID
++                if (connected_servers && connected_servers[oldId]) {
++                    var serverData = connected_servers[oldId];
++                    delete connected_servers[oldId];
++                    serverData.id = newId;
++                    serverData.Id = newId;
++                    connected_servers[newId] = serverData;
++                    storage.set('connected_servers', connected_servers);
++                }
++                // Also update serverInfo reference
++                serverInfo.id = newId;
++                serverInfo.Id = newId;
++            }
++        }
++
++        // Proceed to handoff with auth info
++        getTextToInject(function (bundle) {
++            handoff(serverInfo.hosturl, bundle);
++        }, function (error) {
++            console.error(error);
++            displayError(error);
++            hideConnecting();
++            curr_req = false;
++        });
++    }, options);
+ }
+ 
+ function handleAbort() {
+@@ -452,71 +588,498 @@ function injectStyleText(document, text) {
+     document.body.appendChild(style);
+ }
+ 
++var handoffTimer = null;
++var handoffLoadHandler = null;
++
++function escapeJsString(str) {
++    if (!str) return '';
++    return String(str).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n');
++}
++
+ function handoff(url, bundle) {
+-    console.log("Handoff called with: ", url)
+-    //hideConnecting();
++    console.log("Handoff called with: ", url);
+ 
+     stopDiscovery();
+     document.querySelector('.container').style.display = 'none';
++    document.getElementById('profileSelection').style.display = 'none';
+ 
+     var contentFrame = document.querySelector('#contentFrame');
+-    var contentWindow = contentFrame.contentWindow;
+ 
+-    var timer;
++    if (handoffTimer) {
++        clearInterval(handoffTimer);
++        handoffTimer = null;
++    }
++    if (handoffLoadHandler) {
++        contentFrame.removeEventListener('load', handoffLoadHandler);
++        handoffLoadHandler = null;
++    }
++
++    // Inject a script as early as possible to set/preserve target credentials
++    function injectEarlyScript(doc) {
++        if (!doc || doc.__jfEarlyInjected) return;
++        if (contentFrame.style.display === 'none') return;
++        if (doc.location && doc.location.href === 'about:blank') return;
+ 
+-    function onLoad() {
+-        clearInterval(timer);
+-        contentFrame.contentDocument.removeEventListener('DOMContentLoaded', onLoad);
+-        contentFrame.removeEventListener('load', onLoad);
++        try {
++            var target = doc.head || doc.documentElement;
++            if (target) {
++                var clearScriptText = getCredentialClearScript();
++                doc.__jfEarlyInjected = true;
++                if (clearScriptText) {
++                    var script = doc.createElement('script');
++                    script.type = 'text/javascript';
++                    script.textContent = clearScriptText;
++                    target.insertBefore(script, target.firstChild);
++                    console.log("Jellyfin WebOS: Injected early credential sync script");
++                }
++            }
++        } catch (e) {
++            console.warn("Jellyfin WebOS: Could not inject early script", e);
++        }
++    }
++
++    function armUnload(win) {
++        if (!win) return;
++        try {
++            if (!win.__jfUnloadArmed) {
++                win.__jfUnloadArmed = true;
++                win.addEventListener('unload', onUnload);
++            }
++        } catch (e) {
++            console.warn("Jellyfin WebOS: Could not arm unload listener", e);
++        }
++    }
++
++    function runInjection(doc) {
++        if (!doc || doc.__jfInjected) return;
++        if (contentFrame.style.display === 'none') return;
++        if (doc.location && doc.location.href === 'about:blank') return;
++        if (!doc.head || !doc.body) return;
++
++        doc.__jfInjected = true;
++
++        injectScriptText(doc, 'window.AppInfo = ' + JSON.stringify(appInfo) + ';');
++        injectScriptText(doc, 'window.DeviceInfo = ' + JSON.stringify(deviceInfo) + ';');
+ 
+-        injectScriptText(contentFrame.contentDocument, 'window.AppInfo = ' + JSON.stringify(appInfo) + ';');
+-        injectScriptText(contentFrame.contentDocument, 'window.DeviceInfo = ' + JSON.stringify(deviceInfo) + ';');
++        // Inject auth credentials if available
++        if (authenticatedUser && authToken) {
++            var authInfo = {
++                user: authenticatedUser,
++                token: authToken
++            };
++            injectScriptText(doc, 'window.JellyfinCredentials = ' + JSON.stringify(authInfo) + ';');
++
++            var credentialScript = getCredentialInjectionScript();
++            injectScriptText(doc, credentialScript);
++        }
++
++        // Always inject Switch User UI and Sign Out interception on every load
++        injectScriptText(doc, getSwitchUserInjectionScript());
+ 
+         if (bundle.js) {
+-            injectScriptText(contentFrame.contentDocument, bundle.js);
++            injectScriptText(doc, bundle.js);
+         }
+ 
+         if (bundle.css) {
+-            injectStyleText(contentFrame.contentDocument, bundle.css);
++            injectStyleText(doc, bundle.css);
+         }
+     }
+ 
++    function onLoad() {
++        if (handoffTimer) {
++            clearInterval(handoffTimer);
++            handoffTimer = null;
++        }
++        var doc = contentFrame.contentDocument;
++        var win = contentFrame.contentWindow;
++        if (doc) {
++            doc.removeEventListener('DOMContentLoaded', onLoad);
++        }
++        armUnload(win);
++        runInjection(doc);
++    }
++
+     function onUnload() {
+-        contentWindow.removeEventListener('unload', onUnload);
++        if (handoffTimer) {
++            clearInterval(handoffTimer);
++            handoffTimer = null;
++        }
+ 
+-        timer = setInterval(function () {
++        handoffTimer = setInterval(function () {
+             var contentDocument = contentFrame.contentDocument;
++            var contentWin = contentFrame.contentWindow;
++            if (!contentDocument) return;
++
++            armUnload(contentWin);
+ 
+             switch (contentDocument.readyState) {
+                 case 'loading':
+-                    clearInterval(timer);
++                    injectEarlyScript(contentDocument);
++                    clearInterval(handoffTimer);
++                    handoffTimer = null;
+                     contentDocument.addEventListener('DOMContentLoaded', onLoad);
+                     break;
+ 
+-                // In the case of "loading" is not caught
+                 case 'interactive':
+-                    onLoad();
++                case 'complete':
++                    injectEarlyScript(contentDocument);
++                    if (contentDocument.body) {
++                        clearInterval(handoffTimer);
++                        handoffTimer = null;
++                        onLoad();
++                    }
+                     break;
+             }
+         }, 0);
+     }
+ 
+-    contentWindow.addEventListener('unload', onUnload);
+-
+-    // In the case of "loading" and "interactive" are not caught
+-    contentFrame.addEventListener('load', onLoad);
++    handoffLoadHandler = onLoad;
++    contentFrame.addEventListener('load', handoffLoadHandler);
++    armUnload(contentFrame.contentWindow);
+ 
+     contentFrame.style.display = '';
+     contentFrame.src = url;
+ }
+ 
++/**
++ * Generate the script that synchronizes target credentials BEFORE jellyfin-web reads them.
++ * When authenticatedUser is null, does not clear anything.
++ * When target credentials exist, checks if localStorage already matches; if not, writes target credentials directly.
++ */
++function getCredentialClearScript() {
++    if (!authenticatedUser || !authToken) {
++        return '';
++    }
++
++    var targetUserId = authenticatedUser.Id || '';
++    var targetToken = authToken || '';
++    var serverId = (profiles.currentServer && (profiles.currentServer.id || profiles.currentServer.Id)) ? (profiles.currentServer.id || profiles.currentServer.Id) : '';
++    var serverAddress = (profiles.currentServer && profiles.currentServer.baseurl) ? profiles.currentServer.baseurl : '';
++    var serverName = (profiles.currentServer && profiles.currentServer.Name) ? profiles.currentServer.Name : serverAddress;
++
++    if (!serverId || !targetUserId || !targetToken) {
++        return '';
++    }
++
++    return '(function() {' +
++        '    var serverId = "' + escapeJsString(serverId) + '";' +
++        '    var serverAddress = "' + escapeJsString(serverAddress) + '";' +
++        '    var serverName = "' + escapeJsString(serverName) + '";' +
++        '    var targetUserId = "' + escapeJsString(targetUserId) + '";' +
++        '    var targetToken = "' + escapeJsString(targetToken) + '";' +
++        '    var credentialKey = "jellyfin_credentials";' +
++        '    try {' +
++        '        var existingCreds = JSON.parse(localStorage.getItem(credentialKey) || "{}");' +
++        '        if (!existingCreds.Servers) { existingCreds.Servers = []; }' +
++        '        var first = existingCreds.Servers[0];' +
++        '        if (first && first.Id === serverId && first.UserId === targetUserId && first.AccessToken === targetToken && localStorage.getItem("enableAutoLogin") === "true") {' +
++        '            window.__jfCredsMatchedAtStart = true;' +
++        '            return;' +
++        '        }' +
++        '        var serverEntry = null;' +
++        '        var serverIndex = -1;' +
++        '        for (var i = 0; i < existingCreds.Servers.length; i++) {' +
++        '            if (existingCreds.Servers[i].Id === serverId) {' +
++        '                serverEntry = existingCreds.Servers[i];' +
++        '                serverIndex = i;' +
++        '                break;' +
++        '            }' +
++        '        }' +
++        '        if (!serverEntry) {' +
++        '            serverEntry = {' +
++        '                Id: serverId,' +
++        '                Name: serverName,' +
++        '                ManualAddress: serverAddress,' +
++        '                LocalAddress: serverAddress,' +
++        '                LastConnectionMode: 2' +
++        '            };' +
++        '            existingCreds.Servers.push(serverEntry);' +
++        '            serverIndex = existingCreds.Servers.length - 1;' +
++        '        }' +
++        '        serverEntry.AccessToken = targetToken;' +
++        '        serverEntry.UserId = targetUserId;' +
++        '        serverEntry.DateLastAccessed = new Date().getTime();' +
++        '        if (serverIndex > 0) {' +
++        '            existingCreds.Servers.splice(serverIndex, 1);' +
++        '            existingCreds.Servers.unshift(serverEntry);' +
++        '        }' +
++        '        localStorage.setItem("enableAutoLogin", "true");' +
++        '        localStorage.setItem(credentialKey, JSON.stringify(existingCreds));' +
++        '        window.__jfCredsOverwrittenEarly = true;' +
++        '    } catch (e) {' +
++        '        console.warn("Jellyfin WebOS: Error syncing early credentials", e);' +
++        '    }' +
++        '})();';
++}
++
++/**
++ * Generate the script that injects credentials into Jellyfin-web's credential manager
++ * and triggers at most one reload if stored credentials did not already match.
++ */
++function getCredentialInjectionScript() {
++    var targetUserId = (authenticatedUser && authenticatedUser.Id) ? authenticatedUser.Id : '';
++    var targetUserName = (authenticatedUser && authenticatedUser.Name) ? authenticatedUser.Name : '';
++    var targetToken = authToken || '';
++    var serverId = (profiles.currentServer && (profiles.currentServer.id || profiles.currentServer.Id)) ? (profiles.currentServer.id || profiles.currentServer.Id) : '';
++    var serverAddress = (profiles.currentServer && profiles.currentServer.baseurl) ? profiles.currentServer.baseurl : '';
++    var serverName = (profiles.currentServer && profiles.currentServer.Name) ? profiles.currentServer.Name : serverAddress;
++
++    return '(function() {' +
++        '    if (!window.JellyfinCredentials) {' +
++        '        return;' +
++        '    }' +
++        '    var creds = window.JellyfinCredentials;' +
++        '    var serverId = "' + escapeJsString(serverId) + '";' +
++        '    var serverAddress = "' + escapeJsString(serverAddress) + '";' +
++        '    var serverName = "' + escapeJsString(serverName) + '";' +
++        '    var targetUserId = "' + escapeJsString(targetUserId) + '";' +
++        '    var targetUserName = "' + escapeJsString(targetUserName) + '";' +
++        '    var targetToken = "' + escapeJsString(targetToken) + '";' +
++        '    if (!serverId || !targetUserId || !creds.token) {' +
++        '        return;' +
++        '    }' +
++        '    var reloadKey = "jf_webos_injected_" + targetUserId;' +
++        '    var keysToRemove = [];' +
++        '    for (var k = 0; k < sessionStorage.length; k++) {' +
++        '        var key = sessionStorage.key(k);' +
++        '        if (key && key.indexOf("jf_webos_injected_") === 0 && key !== reloadKey) {' +
++        '            keysToRemove.push(key);' +
++        '        }' +
++        '    }' +
++        '    for (var r = 0; r < keysToRemove.length; r++) {' +
++        '        sessionStorage.removeItem(keysToRemove[r]);' +
++        '    }' +
++        '    var credentialKey = "jellyfin_credentials";' +
++        '    var existingCreds = {};' +
++        '    try {' +
++        '        existingCreds = JSON.parse(localStorage.getItem(credentialKey) || "{}");' +
++        '    } catch (e) {}' +
++        '    if (!existingCreds.Servers) {' +
++        '        existingCreds.Servers = [];' +
++        '    }' +
++        '    var firstServer = existingCreds.Servers[0];' +
++        '    var matchedNow = !!(firstServer && firstServer.Id === serverId && firstServer.UserId === targetUserId && firstServer.AccessToken === creds.token && localStorage.getItem("enableAutoLogin") === "true");' +
++        '    var matchedBeforeLoad = !!(window.__jfCredsMatchedAtStart || (matchedNow && !window.__jfCredsOverwrittenEarly));' +
++        '    if (!matchedNow) {' +
++        '        var serverEntry = null;' +
++        '        var serverIndex = -1;' +
++        '        for (var i = 0; i < existingCreds.Servers.length; i++) {' +
++        '            if (existingCreds.Servers[i].Id === serverId) {' +
++        '                serverEntry = existingCreds.Servers[i];' +
++        '                serverIndex = i;' +
++        '                break;' +
++        '            }' +
++        '        }' +
++        '        if (!serverEntry) {' +
++        '            serverEntry = {' +
++        '                Id: serverId,' +
++        '                Name: serverName,' +
++        '                ManualAddress: serverAddress,' +
++        '                LocalAddress: serverAddress,' +
++        '                LastConnectionMode: 2' +
++        '            };' +
++        '            existingCreds.Servers.push(serverEntry);' +
++        '            serverIndex = existingCreds.Servers.length - 1;' +
++        '        }' +
++        '        serverEntry.AccessToken = creds.token;' +
++        '        serverEntry.UserId = targetUserId;' +
++        '        serverEntry.DateLastAccessed = new Date().getTime();' +
++        '        if (serverIndex > 0) {' +
++        '            existingCreds.Servers.splice(serverIndex, 1);' +
++        '            existingCreds.Servers.unshift(serverEntry);' +
++        '        }' +
++        '        localStorage.setItem("enableAutoLogin", "true");' +
++        '        localStorage.setItem(credentialKey, JSON.stringify(existingCreds));' +
++        '    }' +
++        '    if (matchedBeforeLoad) {' +
++        '        if (sessionStorage.getItem(reloadKey) === "true") {' +
++        '            sessionStorage.removeItem(reloadKey);' +
++        '        }' +
++        '        console.log("Jellyfin WebOS: Credentials matched for user", targetUserName);' +
++        '        return;' +
++        '    }' +
++        '    if (sessionStorage.getItem(reloadKey) === "true") {' +
++        '        sessionStorage.removeItem(reloadKey);' +
++        '        return;' +
++        '    }' +
++        '    sessionStorage.setItem(reloadKey, "true");' +
++        '    location.reload();' +
++        '})();';
++}
++
++/**
++ * Generate the script that persistently injects "Switch user" buttons into the Jellyfin UI
++ * and intercepts "Sign out" actions to open the WebOS profile picker.
++ */
++function getSwitchUserInjectionScript() {
++    return '(function() {' +
++        '    if (window.__jfSwitchUserInitialized) return;' +
++        '    window.__jfSwitchUserInitialized = true;' +
++        '    var triggerShowProfiles = function(evt) {' +
++        '        if (evt) {' +
++        '            try { evt.preventDefault(); evt.stopPropagation(); } catch (e) {}' +
++        '        }' +
++        '        try { window.parent.postMessage({ type: "showProfiles" }, "*"); } catch (e) {}' +
++        '    };' +
++        '    var bindActivate = function(btn) {' +
++        '        btn.onclick = function(e) { triggerShowProfiles(e); return false; };' +
++        '        btn.onkeydown = function(e) {' +
++        '            var code = e ? (e.keyCode || e.which) : 0;' +
++        '            if (code === 13 || code === 32) { triggerShowProfiles(e); return false; }' +
++        '        };' +
++        '    };' +
++        '    var switchIconSvg = "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' width=\'24\' height=\'24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'1.8\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'display:block;width:1em;height:1em\' aria-hidden=\'true\' focusable=\'false\'><circle cx=\'9\' cy=\'7\' r=\'3.5\'/><path d=\'M2.5 20.5c0-3.6 2.9-6.5 6.5-6.5 1.2 0 2.3.3 3.3.9\'/><path d=\'M14 14.5h8M14 14.5l2.6-2.6\'/><path d=\'M22 19.5h-8M22 19.5l-2.6 2.6\'/></svg>";' +
++        '    var ensureButtons = function() {' +
++        '        try {' +
++        '            if (!document.getElementById("jf-switch-user-header-btn")) {' +
++        '                var headerRight = document.querySelector(".headerRight");' +
++        '                var skinHeader = headerRight || document.querySelector(".skinHeader");' +
++        '                if (skinHeader) {' +
++        '                    var hBtn = document.createElement("button");' +
++        '                    hBtn.type = "button";' +
++        '                    hBtn.id = "jf-switch-user-header-btn";' +
++        '                    hBtn.setAttribute("is", "paper-icon-button-light");' +
++        '                    hBtn.className = "headerButton headerButtonRight paper-icon-button-light show-focus jf-switch-user";' +
++        '                    hBtn.title = "Switch user";' +
++        '                    hBtn.setAttribute("aria-label", "Switch user");' +
++        '                    hBtn.innerHTML = "<span class=\'material-icons\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span>";' +
++        '                    bindActivate(hBtn);' +
++        '                    var userBtn = headerRight ? headerRight.querySelector(".headerUserButton") : null;' +
++        '                    if (headerRight && userBtn && userBtn.parentNode === headerRight) {' +
++        '                        headerRight.insertBefore(hBtn, userBtn);' +
++        '                    } else {' +
++        '                        skinHeader.appendChild(hBtn);' +
++        '                    }' +
++        '                }' +
++        '            }' +
++        '            if (!document.getElementById("jf-switch-user-prefs-btn")) {' +
++        '                var prefs = document.querySelector("#myPreferencesMenuPage, .myPreferencesMenuPage");' +
++        '                if (prefs) {' +
++        '                    var logoutEl = prefs.querySelector(".btnLogout");' +
++        '                    if (!logoutEl) {' +
++        '                        var candidates = prefs.querySelectorAll("a, button, .listItem, .listItemBodyText");' +
++        '                        for (var i = 0; i < candidates.length; i++) {' +
++        '                            var txt = (candidates[i].innerText || candidates[i].textContent || "").trim().toLowerCase();' +
++        '                            if (txt === "sign out" || txt === "log out" || txt === "logout") {' +
++        '                                var cur = candidates[i];' +
++        '                                while (cur && cur !== prefs) {' +
++        '                                    var curTag = cur.tagName ? cur.tagName.toUpperCase() : "";' +
++        '                                    var curCls = (typeof cur.className === "string") ? cur.className : "";' +
++        '                                    if (curTag === "A" || curTag === "BUTTON" || curCls.indexOf("listItem-border") !== -1) {' +
++        '                                        logoutEl = cur;' +
++        '                                        break;' +
++        '                                    }' +
++        '                                    cur = cur.parentNode;' +
++        '                                }' +
++        '                                if (!logoutEl) { logoutEl = candidates[i]; }' +
++        '                                break;' +
++        '                            }' +
++        '                        }' +
++        '                    }' +
++        '                    if (logoutEl && logoutEl.parentNode) {' +
++        '                        var pBtn = document.createElement("a");' +
++        '                        pBtn.id = "jf-switch-user-prefs-btn";' +
++        '                        var baseCls = (typeof logoutEl.className === "string" && logoutEl.className) ? logoutEl.className.replace(/\\bbtnLogout\\b/g, "").replace(/\\s+/g, " ").trim() : "emby-button listItem-border show-focus";' +
++        '                        if (baseCls.indexOf("listItem-border") === -1) { baseCls += " listItem-border"; }' +
++        '                        if (baseCls.indexOf("emby-button") === -1) { baseCls += " emby-button"; }' +
++        '                        if (baseCls.indexOf("show-focus") === -1 && document.documentElement.className.indexOf("layout-tv") !== -1) { baseCls += " show-focus"; }' +
++        '                        pBtn.className = baseCls + " jf-switch-user-prefs";' +
++        '                        pBtn.href = "#";' +
++        '                        pBtn.setAttribute("style", logoutEl.getAttribute("style") || "display:block;margin:0;padding:0");' +
++        '                        pBtn.innerHTML = "<div class=\'listItem\'><span class=\'material-icons listItemIcon listItemIcon-transparent\' aria-hidden=\'true\' style=\'display:inline-flex;align-items:center;justify-content:center\'>" + switchIconSvg + "</span><div class=\'listItemBody\'><div class=\'listItemBodyText\'>Switch User</div></div></div>";' +
++        '                        bindActivate(pBtn);' +
++        '                        logoutEl.parentNode.appendChild(pBtn);' +
++        '                    }' +
++        '                }' +
++        '            }' +
++        '        } catch (e) {' +
++        '            console.warn("Jellyfin WebOS: ensureButtons error", e);' +
++        '        }' +
++        '    };' +
++        '    document.addEventListener("click", function(e) {' +
++        '        var el = e.target;' +
++        '        while (el && el !== document.body) {' +
++        '            if (el.id === "jf-switch-user-header-btn" || el.id === "jf-switch-user-prefs-btn") {' +
++        '                return;' +
++        '            }' +
++        '            var cls = (typeof el.className === "string") ? el.className : "";' +
++        '            if (cls.indexOf("btnLogout") !== -1) {' +
++        '                triggerShowProfiles(e);' +
++        '                return;' +
++        '            }' +
++        '            var tag = el.tagName ? el.tagName.toUpperCase() : "";' +
++        '            if (tag === "BUTTON" || tag === "A" || cls.indexOf("listItem") !== -1) {' +
++        '                var t = (el.innerText || el.textContent || "").trim().toLowerCase();' +
++        '                if (t === "sign out" || t === "log out" || t === "logout") {' +
++        '                    triggerShowProfiles(e);' +
++        '                    return;' +
++        '                }' +
++        '            }' +
++        '            el = el.parentNode;' +
++        '        }' +
++        '    }, true);' +
++        '    ensureButtons();' +
++        '    setInterval(ensureButtons, 1000);' +
++        '    if (typeof MutationObserver !== "undefined") {' +
++        '        try {' +
++        '            var obs = new MutationObserver(function() { ensureButtons(); });' +
++        '            var root = document.body || document.documentElement;' +
++        '            if (root) { obs.observe(root, { childList: true, subtree: true }); }' +
++        '        } catch (e) {}' +
++        '    }' +
++        '})();';
++}
++
+ window.addEventListener('message', function (msg) {
+     msg = msg.data;
++    if (!msg || !msg.type) {
++        return;
++    }
++
++    console.log('Wrapper received message type:', msg.type);
+ 
+     var contentFrame = document.querySelector('#contentFrame');
+ 
+     switch (msg.type) {
++        case 'showProfiles':
++            // Clear any currently active auth so we re-open profile selection
++            authenticatedUser = null;
++            authToken = null;
++
++            stopDiscovery();
++            document.querySelector('.container').style.display = '';
++            hideConnecting();
++
++            contentFrame.style.display = 'none';
++            contentFrame.src = '';
++
++            // If the iframe provided a serverId, use it; otherwise use profiles.currentServer or first connected_servers entry
++            var serverToShow = null;
++            var allServers = getConnectedServers();
++            if (msg.serverId && allServers && allServers[msg.serverId]) {
++                serverToShow = allServers[msg.serverId];
++            } else if (profiles && profiles.currentServer) {
++                serverToShow = profiles.currentServer;
++            } else if (allServers) {
++                var serverKeys = Object.keys(allServers);
++                if (serverKeys.length > 0) {
++                    serverToShow = allServers[serverKeys[0]];
++                }
++            }
++
++            if (serverToShow) {
++                // Always show profile selection when switching users
++                startProfileSelection(serverToShow, { forceShowSelection: true });
++            } else {
++                // fallback: show discovery/server list so user can pick
++                startDiscovery();
++            }
++            break;
+         case 'selectServer':
++            // Clear auth state when returning to server selection
++            authenticatedUser = null;
++            authToken = null;
++
+             startDiscovery();
+             document.querySelector('.container').style.display = '';
+             hideConnecting();
+@@ -627,7 +1190,7 @@ function startDiscovery() {
+         return;
+     }
+     console.log("Starting server autodiscovery...");
+-    discover = webOS.service.request("luna://org.jellyfin.webos.service", {
++    discover = webOS.service.request("luna://nl.timsas.jellyfin.multiuser.service", {
+         method: "discover",
+         parameters: {
+             uniqueToken: 'fooo'
+diff --git a/frontend/js/profiles.js b/frontend/js/profiles.js
+new file mode 100644
+index 0000000..dfdd424
+--- /dev/null
++++ b/frontend/js/profiles.js
+@@ -0,0 +1,2390 @@
++/*
++ * This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
++ *
++ * Profile selection and authentication management for Jellyfin WebOS
++ */
++
++var profiles = new PROFILES();
++
++function PROFILES() {
++    this.currentServer = null;
++    this.users = [];
++    this.publicUsers = [];
++    this.selectedUser = null;
++    this.onComplete = null;
++    this.quickConnectSecret = null;
++    this.quickConnectCode = null;
++    this.quickConnectPollInterval = null;
++    this.quickConnectEnabled = false;
++    this._numPinKeyHandler = null;
++    this._numPinState = null;
++    this._manualOverlayKeyHandler = null;
++}
++
++/**
++ * Storage keys for auth tokens
++ */
++PROFILES.prototype.getAuthStorageKey = function (serverId) {
++    return 'jellyfin_auth_' + serverId;
++};
++
++/**
++ * Storage key for auto sign-in user per server
++ */
++PROFILES.prototype.getAutoSignInStorageKey = function (serverId) {
++    return 'jellyfin_autosignin_' + serverId;
++};
++
++/**
++ * Get the userId configured for auto sign-in on a server, or null
++ */
++PROFILES.prototype.getAutoSignInUser = function (serverId) {
++    var ids = this.getCandidateServerIds(serverId);
++    for (var i = 0; i < ids.length; i++) {
++        var val = storage.get(this.getAutoSignInStorageKey(ids[i]));
++        if (val && typeof val === 'string') {
++            return val;
++        }
++    }
++    return null;
++};
++
++/**
++ * Set or clear the auto sign-in userId for a server (only one user per server)
++ */
++PROFILES.prototype.setAutoSignInUser = function (serverId, userIdOrNull) {
++    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
++    if (!targetServerId) return;
++    var ids = this.getCandidateServerIds(targetServerId);
++    for (var i = 0; i < ids.length; i++) {
++        storage.remove(this.getAutoSignInStorageKey(ids[i]));
++    }
++    if (userIdOrNull && typeof userIdOrNull === 'string') {
++        storage.set(this.getAutoSignInStorageKey(targetServerId), userIdOrNull);
++    }
++};
++
++/**
++ * Get candidate server IDs for consistent lookup across id / Id / baseurl
++ */
++PROFILES.prototype.getCandidateServerIds = function (serverId) {
++    var ids = [];
++    function addId(val) {
++        if (val && typeof val === 'string' && ids.indexOf(val) === -1) {
++            ids.push(val);
++        }
++    }
++    addId(serverId);
++    if (this.currentServer) {
++        addId(this.currentServer.id);
++        addId(this.currentServer.Id);
++        addId(this.currentServer.baseurl);
++    }
++    return ids;
++};
++
++/**
++ * Get stored auth data for a server (merges across candidate server IDs)
++ */
++PROFILES.prototype.getStoredAuth = function (serverId) {
++    var ids = this.getCandidateServerIds(serverId);
++    var merged = {};
++    // Iterate from fallback to primary so primary serverId overwrites older fallback entries
++    for (var i = ids.length - 1; i >= 0; i--) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object') {
++            var userIds = Object.keys(data);
++            for (var j = 0; j < userIds.length; j++) {
++                var uid = userIds[j];
++                if (data[uid]) {
++                    merged[uid] = data[uid];
++                }
++            }
++        }
++    }
++    return merged;
++};
++
++/**
++ * Store auth data for a user on a server (preserves existing PIN and skip state)
++ */
++PROFILES.prototype.storeAuth = function (serverId, userId, token, userName, primaryImageTag, hasPassword) {
++    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
++    if (!targetServerId || !userId) return;
++    var key = this.getAuthStorageKey(targetServerId);
++    var authData = this.getStoredAuth(targetServerId);
++    var existing = authData[userId] || {};
++    var entry = {
++        token: token,
++        userName: userName || existing.userName,
++        primaryImageTag: primaryImageTag !== undefined ? primaryImageTag : (existing.primaryImageTag || null),
++        hasPassword: hasPassword !== undefined ? !!hasPassword : !!existing.hasPassword,
++        timestamp: Date.now()
++    };
++    if (existing.pin) {
++        entry.pin = existing.pin;
++    }
++    if (existing.pinPromptSkipped) {
++        entry.pinPromptSkipped = true;
++    }
++    authData[userId] = entry;
++    storage.set(key, authData);
++};
++
++/**
++ * Clear only the stored token for a user (used when token is invalid; preserves PIN)
++ */
++PROFILES.prototype.clearToken = function (serverId, userId) {
++    var ids = this.getCandidateServerIds(serverId);
++    for (var i = 0; i < ids.length; i++) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object' && data[userId]) {
++            delete data[userId].token;
++            storage.set(key, data);
++        }
++    }
++};
++
++/**
++ * Remove all auth data (including PIN) for a user (forget profile)
++ */
++PROFILES.prototype.removeAuth = function (serverId, userId) {
++    var ids = this.getCandidateServerIds(serverId);
++    for (var i = 0; i < ids.length; i++) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object' && data[userId]) {
++            delete data[userId];
++            storage.set(key, data);
++        }
++    }
++    if (Array.isArray(this.users)) {
++        this.users = this.users.filter(function (u) {
++            return !(u && u.Id === userId && u._saved);
++        });
++    }
++    if (this.getAutoSignInUser(serverId) === userId) {
++        this.setAutoSignInUser(serverId, null);
++    }
++};
++
++/**
++ * Get stored 4-digit PIN for a user, or null if not set
++ */
++PROFILES.prototype.getUserPin = function (serverId, userId) {
++    var authData = this.getStoredAuth(serverId);
++    if (authData[userId] && typeof authData[userId].pin === 'string' && authData[userId].pin.length === 4) {
++        return authData[userId].pin;
++    }
++    return null;
++};
++
++/**
++ * Set 4-digit PIN for a user
++ */
++PROFILES.prototype.setUserPin = function (serverId, userId, pin) {
++    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
++    if (!targetServerId || !userId) return;
++    var cleanPin = (pin && typeof pin === 'string') ? pin : String(pin || '');
++    var ids = this.getCandidateServerIds(targetServerId);
++    var authData = this.getStoredAuth(targetServerId);
++    var existing = authData[userId] || {};
++    existing.pin = cleanPin;
++    authData[userId] = existing;
++    storage.set(this.getAuthStorageKey(targetServerId), authData);
++
++    for (var i = 0; i < ids.length; i++) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object' && data[userId]) {
++            data[userId].pin = cleanPin;
++            storage.set(key, data);
++        }
++    }
++
++    if (this.getAutoSignInUser(targetServerId) === userId) {
++        this.setAutoSignInUser(targetServerId, null);
++    }
++};
++
++/**
++ * Clear PIN for a user
++ */
++PROFILES.prototype.clearUserPin = function (serverId, userId) {
++    var ids = this.getCandidateServerIds(serverId);
++    for (var i = 0; i < ids.length; i++) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object' && data[userId]) {
++            delete data[userId].pin;
++            storage.set(key, data);
++        }
++    }
++};
++
++/**
++ * Check if initial PIN prompt was skipped for a user
++ */
++PROFILES.prototype.isPinPromptSkipped = function (serverId, userId) {
++    var authData = this.getStoredAuth(serverId);
++    return !!(authData[userId] && authData[userId].pinPromptSkipped);
++};
++
++/**
++ * Mark initial PIN prompt as skipped for a user
++ */
++PROFILES.prototype.setPinPromptSkipped = function (serverId, userId, skipped) {
++    var targetServerId = serverId || (this.currentServer && (this.currentServer.id || this.currentServer.Id));
++    if (!targetServerId || !userId) return;
++    var ids = this.getCandidateServerIds(targetServerId);
++    var authData = this.getStoredAuth(targetServerId);
++    var existing = authData[userId] || {};
++    existing.pinPromptSkipped = !!skipped;
++    authData[userId] = existing;
++    storage.set(this.getAuthStorageKey(targetServerId), authData);
++
++    for (var i = 0; i < ids.length; i++) {
++        var key = this.getAuthStorageKey(ids[i]);
++        var data = storage.get(key);
++        if (data && typeof data === 'object' && data[userId]) {
++            data[userId].pinPromptSkipped = !!skipped;
++            storage.set(key, data);
++        }
++    }
++};
++
++/**
++ * Check if any user on the current server has a stored token
++ */
++PROFILES.prototype.hasSavedUsers = function () {
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var authData = this.getStoredAuth(serverId);
++    var userIds = Object.keys(authData);
++    for (var i = 0; i < userIds.length; i++) {
++        if (authData[userIds[i]] && authData[userIds[i]].token) {
++            return true;
++        }
++    }
++    return false;
++};
++
++/**
++ * Merge public users with saved users from local storage
++ */
++PROFILES.prototype.getMergedUsers = function (publicUsers) {
++    var list = Array.isArray(publicUsers) ? publicUsers.slice() : [];
++    var seen = {};
++    for (var i = 0; i < list.length; i++) {
++        if (list[i] && list[i].Id) {
++            seen[list[i].Id] = list[i];
++        }
++    }
++
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var storedAuth = this.getStoredAuth(serverId);
++    var userIds = Object.keys(storedAuth);
++    for (var j = 0; j < userIds.length; j++) {
++        var uid = userIds[j];
++        var entry = storedAuth[uid];
++        if (!entry || !entry.userName) continue;
++        if (!seen[uid]) {
++            var savedUser = {
++                Id: uid,
++                Name: entry.userName,
++                PrimaryImageTag: entry.primaryImageTag || null,
++                HasPassword: false,
++                _saved: true
++            };
++            list.push(savedUser);
++            seen[uid] = savedUser;
++        } else if (!seen[uid].PrimaryImageTag && entry.primaryImageTag) {
++            seen[uid].PrimaryImageTag = entry.primaryImageTag;
++        }
++    }
++    return list;
++};
++
++/**
++ * Get auth token for a specific user
++ */
++PROFILES.prototype.getUserToken = function (serverId, userId) {
++    var authData = this.getStoredAuth(serverId);
++    if (authData[userId] && authData[userId].token) {
++        return authData[userId].token;
++    }
++    return null;
++};
++
++/**
++ * Fetch public users from server
++ */
++PROFILES.prototype.fetchUsers = function (baseurl, callback, errorCallback) {
++    var self = this;
++    ajax.request(normalizeUrl(baseurl + '/Users/Public'), {
++        method: 'GET',
++        success: function (data) {
++            if (Array.isArray(data)) {
++                self.publicUsers = data;
++                self.users = data;
++                callback(data);
++            } else {
++                errorCallback('Invalid response from server');
++            }
++        },
++        error: function (err) {
++            errorCallback(err);
++        },
++        timeout: 10000
++    });
++};
++
++/**
++ * Build and apply Jellyfin Authorization headers on an XMLHttpRequest.
++ * Sets both standard Authorization (required by Jellyfin 10.9+/10.12+) and
++ * legacy X-Emby-Authorization for backward compatibility.
++ */
++PROFILES.prototype.setAuthHeaders = function (xhr, token) {
++    var deviceName = (typeof appInfo !== 'undefined' && appInfo && appInfo.deviceName) ? appInfo.deviceName : 'LG Smart TV';
++    var deviceId = (typeof appInfo !== 'undefined' && appInfo && appInfo.deviceId) ? appInfo.deviceId : (typeof getDeviceId === 'function' ? getDeviceId() : 'lg-webos-tv');
++    var appVersion = (typeof appInfo !== 'undefined' && appInfo && appInfo.appVersion && appInfo.appVersion !== '0.0.0') ? appInfo.appVersion : '2.1.0';
++
++    var clean = function (val) {
++        return String(val || '').replace(/["\\\r\n]/g, '');
++    };
++
++    var authHeader = 'MediaBrowser Client="Jellyfin WebOS", Device="' + clean(deviceName) +
++        '", DeviceId="' + clean(deviceId) + '", Version="' + clean(appVersion) + '"';
++    if (token) {
++        authHeader += ', Token="' + clean(token) + '"';
++    }
++
++    xhr.setRequestHeader('Authorization', authHeader);
++    xhr.setRequestHeader('X-Emby-Authorization', authHeader);
++};
++
++/**
++ * Authenticate user with password/PIN
++ */
++PROFILES.prototype.authenticateUser = function (baseurl, userId, username, password, callback, errorCallback) {
++    var self = this;
++
++    var xhr = new XMLHttpRequest();
++    xhr.open('POST', normalizeUrl(baseurl + '/Users/AuthenticateByName'));
++    xhr.setRequestHeader('Content-Type', 'application/json');
++    this.setAuthHeaders(xhr);
++    xhr.timeout = 10000;
++
++    xhr.onload = function () {
++        if (xhr.status === 200) {
++            try {
++                var response = JSON.parse(xhr.responseText);
++                if (response.AccessToken) {
++                    // Update server ID with the real ServerId from Jellyfin
++                    // This is crucial for credential injection to work correctly
++                    if (response.ServerId && self.currentServer) {
++                        console.log('Updating server ID from', self.currentServer.id, 'to', response.ServerId);
++                        self.currentServer.id = response.ServerId;
++                        self.currentServer.Id = response.ServerId;
++                    }
++                    
++                    self.storeAuth(
++                        self.currentServer.id,
++                        response.User.Id,
++                        response.AccessToken,
++                        response.User.Name,
++                        response.User.PrimaryImageTag || null,
++                        !!password || (response.User.HasPassword !== undefined ? response.User.HasPassword : false)
++                    );
++                    callback(response);
++                } else {
++                    errorCallback('No access token received');
++                }
++            } catch (e) {
++                errorCallback('Invalid server response');
++            }
++        } else if (xhr.status === 401) {
++            errorCallback('Invalid password');
++        } else {
++            errorCallback('Authentication failed: ' + xhr.status);
++        }
++    };
++
++    xhr.onerror = function () {
++        errorCallback('Network error');
++    };
++
++    xhr.ontimeout = function () {
++        errorCallback('Request timed out');
++    };
++
++    xhr.send(JSON.stringify({
++        Username: username,
++        Pw: password || ''
++    }));
++};
++
++/**
++ * Validate an existing token
++ */
++PROFILES.prototype.validateToken = function (baseurl, userId, token, callback, errorCallback) {
++    var xhr = new XMLHttpRequest();
++    xhr.open('GET', normalizeUrl(baseurl + '/Users/' + userId));
++    this.setAuthHeaders(xhr, token);
++    xhr.timeout = 10000;
++
++    xhr.onload = function () {
++        if (xhr.status === 200) {
++            try {
++                var user = JSON.parse(xhr.responseText);
++                callback(user, token);
++            } catch (e) {
++                errorCallback('Invalid response');
++            }
++        } else {
++            errorCallback('Token invalid');
++        }
++    };
++
++    xhr.onerror = function () {
++        errorCallback('Network error');
++    };
++
++    xhr.ontimeout = function () {
++        errorCallback('Request timed out');
++    };
++
++    xhr.send();
++};
++
++/**
++ * Check if profile selection is needed
++ */
++PROFILES.prototype.shouldShowProfileSelection = function () {
++    // Show if there are multiple users or if the single user has a password
++    if (this.users.length === 0) {
++        return false;
++    }
++    if (this.users.length > 1) {
++        return true;
++    }
++    // Single user - check if they have a password and no stored token
++    var user = this.users[0];
++    var storedToken = this.getUserToken(this.currentServer.id, user.Id);
++    if (user.HasPassword && !storedToken) {
++        return true;
++    }
++    return false;
++};
++
++/**
++ * Initialize profile selection flow
++ */
++PROFILES.prototype.init = function (serverInfo, onComplete, options) {
++    var self = this;
++    if (serverInfo) {
++        serverInfo.id = serverInfo.id || serverInfo.Id || serverInfo.baseurl;
++        serverInfo.Id = serverInfo.Id || serverInfo.id;
++    }
++    this.currentServer = serverInfo;
++    this.onComplete = onComplete;
++    options = options || {};
++
++    // Check if Quick Connect is enabled on server
++    this.checkQuickConnectEnabled(serverInfo.baseurl, function (enabled) {
++        self.quickConnectEnabled = enabled;
++        var qcBtn = document.getElementById('manualQuickConnectBtn');
++        var qcDivider = document.getElementById('manualQuickConnectDivider');
++        if (qcBtn) {
++            qcBtn.style.display = enabled ? 'block' : 'none';
++        }
++        if (qcDivider) {
++            qcDivider.style.display = enabled ? 'block' : 'none';
++        }
++    });
++
++    var handleUsersReady = function (mergedUsers) {
++        self.users = mergedUsers;
++
++        if (options.allowAutoSignIn) {
++            var autoUserId = self.getAutoSignInUser(serverInfo.id);
++            var autoToken = autoUserId ? self.getUserToken(serverInfo.id, autoUserId) : null;
++            var autoPin = autoUserId ? self.getUserPin(serverInfo.id, autoUserId) : null;
++            if (autoUserId && autoToken && !autoPin) {
++                var knownUser = null;
++                for (var i = 0; i < mergedUsers.length; i++) {
++                    if (mergedUsers[i] && mergedUsers[i].Id === autoUserId) {
++                        knownUser = mergedUsers[i];
++                        break;
++                    }
++                }
++                self.showLoading();
++                self.validateToken(serverInfo.baseurl, autoUserId, autoToken, function (validUser, validToken) {
++                    self.hideLoading();
++                    self.storeAuth(
++                        self.currentServer.id,
++                        validUser.Id || autoUserId,
++                        validToken,
++                        validUser.Name || (knownUser && knownUser.Name),
++                        validUser.PrimaryImageTag || (knownUser && knownUser.PrimaryImageTag) || null,
++                        validUser.HasPassword
++                    );
++                    self.onComplete(validUser, validToken);
++                }, function () {
++                    self.hideLoading();
++                    self.clearToken(serverInfo.id, autoUserId);
++                    self.setAutoSignInUser(serverInfo.id, null);
++                    self.showProfileSelection();
++                });
++                return;
++            }
++        }
++
++        if (mergedUsers.length === 0) {
++            self.showProfileSelection();
++            return;
++        }
++
++        if (options.legacyAuto && !options.forceShowSelection && !self.shouldShowProfileSelection()) {
++            // Single user without password or with valid token
++            var user = mergedUsers[0];
++            var token = self.getUserToken(serverInfo.id, user.Id);
++            if (token) {
++                self.validateToken(serverInfo.baseurl, user.Id, token, function (validUser, validToken) {
++                    self.storeAuth(
++                        self.currentServer.id,
++                        validUser.Id || user.Id,
++                        validToken,
++                        validUser.Name || user.Name,
++                        validUser.PrimaryImageTag || user.PrimaryImageTag || null,
++                        validUser.HasPassword
++                    );
++                    self.onComplete(validUser, validToken);
++                }, function () {
++                    // Token invalid, clear token (keep PIN) and show selection
++                    self.clearToken(serverInfo.id, user.Id);
++                    self.showProfileSelection();
++                });
++            } else if (!user.HasPassword && !user._saved) {
++                // No password required, authenticate directly
++                self.authenticateUser(serverInfo.baseurl, user.Id, user.Name, '', function (response) {
++                    self.onComplete(response.User, response.AccessToken);
++                }, function () {
++                    self.showProfileSelection();
++                });
++            } else {
++                self.showProfileSelection();
++            }
++        } else {
++            self.showProfileSelection();
++        }
++    };
++
++    this.fetchUsers(serverInfo.baseurl, function (users) {
++        var mergedUsers = self.getMergedUsers(users);
++        handleUsersReady(mergedUsers);
++    }, function (error) {
++        console.error('Failed to fetch users:', error);
++        self.publicUsers = [];
++        handleUsersReady(self.getMergedUsers([]));
++    });
++};
++
++/**
++ * Show the profile selection UI
++ */
++PROFILES.prototype.showProfileSelection = function (focusTarget) {
++    var self = this;
++    var container = document.getElementById('profileSelection');
++    var grid = document.getElementById('profileGrid');
++    var headerEl = container ? container.querySelector('h1') : null;
++
++    if (headerEl) {
++        headerEl.textContent = "Who's watching?";
++    }
++
++    // Clear existing profiles
++    grid.innerHTML = '';
++
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var storedAuth = this.getStoredAuth(serverId);
++    var autoSignInUserId = this.getAutoSignInUser(serverId);
++
++    // Create profile columns
++    this.users.forEach(function (user, index) {
++        var col = document.createElement('div');
++        col.className = 'profile-column';
++        col.dataset.userId = user.Id;
++
++        var card = self.createProfileCard(user, index);
++        col.appendChild(card);
++
++        var subActions = document.createElement('div');
++        subActions.className = 'profile-sub-actions';
++
++        var isSaved = !!(self.getUserToken(serverId, user.Id) || (storedAuth && storedAuth[user.Id]) || user._saved);
++        if (isSaved) {
++            col.className = 'profile-column has-actions';
++            var trayTitle = document.createElement('div');
++            trayTitle.className = 'profile-sub-actions-title';
++            trayTitle.textContent = 'Options for ' + user.Name;
++            subActions.appendChild(trayTitle);
++
++            var hasPin = !!self.getUserPin(serverId, user.Id);
++
++            if (!hasPin) {
++                var isAuto = autoSignInUserId === user.Id;
++                var autoBtn = document.createElement('button');
++                autoBtn.type = 'button';
++                autoBtn.className = 'profile-action-btn profile-action-auto' + (isAuto ? ' is-on' : '');
++                autoBtn.textContent = isAuto ? '\u2713 Auto sign-in' : 'Auto sign-in';
++                autoBtn.onclick = function () {
++                    if (self.getAutoSignInUser(serverId) === user.Id) {
++                        self.setAutoSignInUser(serverId, null);
++                    } else {
++                        self.setAutoSignInUser(serverId, user.Id);
++                    }
++                    self.showProfileSelection({ userId: user.Id, target: 'auto' });
++                };
++                subActions.appendChild(autoBtn);
++            }
++
++            var pinBtn = document.createElement('button');
++            pinBtn.type = 'button';
++            pinBtn.className = 'profile-action-btn profile-action-pin';
++            pinBtn.textContent = hasPin ? 'Manage PIN' : 'Set PIN';
++            pinBtn.onclick = function () {
++                self.manageProfile(user);
++            };
++            subActions.appendChild(pinBtn);
++
++            var removeBtn = document.createElement('button');
++            removeBtn.type = 'button';
++            removeBtn.className = 'profile-action-btn profile-action-btn-danger profile-action-remove';
++            removeBtn.textContent = 'Remove user';
++            removeBtn.onclick = function () {
++                self.removeAuth(serverId, user.Id);
++                self.showProfileSelection({ colIndex: index });
++            };
++            subActions.appendChild(removeBtn);
++        }
++
++        col.appendChild(subActions);
++        grid.appendChild(col);
++    });
++
++    // Add "Add User" card column for manual login / Quick Connect
++    var addCol = document.createElement('div');
++    addCol.className = 'profile-column';
++    var addCard = this.createAddUserCard();
++    addCol.appendChild(addCard);
++    var addSubSpacer = document.createElement('div');
++    addSubSpacer.className = 'profile-sub-actions';
++    addCol.appendChild(addSubSpacer);
++    grid.appendChild(addCol);
++
++    var setSelectedColumn = function (colEl) {
++        var allColumnEls = grid.querySelectorAll('.profile-column');
++        for (var j = 0; j < allColumnEls.length; j++) {
++            if (allColumnEls[j] === colEl) {
++                allColumnEls[j].classList.add('is-selected');
++            } else {
++                allColumnEls[j].classList.remove('is-selected');
++            }
++        }
++    };
++
++    if (!grid._jfFocusBound) {
++        grid.addEventListener('focus', function (e) {
++            var node = e.target;
++            while (node && node !== grid) {
++                if (node.classList && node.classList.contains('profile-column')) {
++                    setSelectedColumn(node);
++                    return;
++                }
++                node = node.parentNode;
++            }
++        }, true);
++        grid._jfFocusBound = true;
++    }
++
++    // Show the container
++    this.hideLoading();
++    document.querySelector('.container').style.display = 'none';
++    document.getElementById('busy').style.display = 'none';
++    container.style.display = 'flex';
++
++    // Set up keyboard navigation
++    this.setupNavigation();
++
++    // Focus requested target or first profile card
++    var focused = false;
++    var selectedCol = null;
++    if (focusTarget) {
++        if (focusTarget.userId) {
++            var cols = grid.querySelectorAll('.profile-column');
++            for (var i = 0; i < cols.length; i++) {
++                if (cols[i].dataset.userId === focusTarget.userId) {
++                    selectedCol = cols[i];
++                    setSelectedColumn(selectedCol);
++                    var targetEl = null;
++                    if (focusTarget.target === 'pin') {
++                        targetEl = cols[i].querySelector('.profile-action-pin');
++                    } else if (focusTarget.target === 'auto') {
++                        targetEl = cols[i].querySelector('.profile-action-auto');
++                    } else {
++                        targetEl = cols[i].querySelector('.profile-card');
++                    }
++                    if (!targetEl) {
++                        targetEl = cols[i].querySelector('.profile-card');
++                    }
++                    if (targetEl) {
++                        targetEl.focus();
++                        focused = true;
++                    }
++                    break;
++                }
++            }
++        } else if (typeof focusTarget.colIndex === 'number') {
++            var allCols = grid.querySelectorAll('.profile-column');
++            if (allCols.length > 0) {
++                var idx = Math.max(0, Math.min(focusTarget.colIndex, allCols.length - 1));
++                selectedCol = allCols[idx];
++                setSelectedColumn(selectedCol);
++                var cardInCol = allCols[idx].querySelector('.profile-card');
++                if (cardInCol) {
++                    cardInCol.focus();
++                    focused = true;
++                }
++            }
++        }
++    }
++
++    if (!focused) {
++        var firstCol = grid.querySelector('.profile-column');
++        if (firstCol) {
++            setSelectedColumn(firstCol);
++            var firstCard = firstCol.querySelector('.profile-card');
++            if (firstCard) {
++                firstCard.focus();
++            }
++        }
++    }
++};
++
++/**
++ * Create a profile card element
++ */
++PROFILES.prototype.createProfileCard = function (user, index) {
++    var self = this;
++    var card = document.createElement('div');
++    card.className = 'profile-card';
++    card.tabIndex = index;
++    card.dataset.userId = user.Id;
++    card.dataset.userName = user.Name;
++    card.dataset.hasPassword = user.HasPassword ? 'true' : 'false';
++
++    // Avatar
++    var avatar = document.createElement('div');
++    avatar.className = 'profile-avatar';
++
++    if (user.PrimaryImageTag) {
++        var img = document.createElement('img');
++        img.src = normalizeUrl(this.currentServer.baseurl + '/Users/' + user.Id +
++            '/Images/Primary?tag=' + user.PrimaryImageTag + '&quality=90&maxHeight=200');
++        img.alt = user.Name;
++        img.onerror = function () {
++            this.style.display = 'none';
++            avatar.classList.add('profile-avatar-placeholder');
++            avatar.textContent = user.Name.charAt(0).toUpperCase();
++        };
++        avatar.appendChild(img);
++    } else {
++        avatar.classList.add('profile-avatar-placeholder');
++        avatar.textContent = user.Name.charAt(0).toUpperCase();
++    }
++
++    card.appendChild(avatar);
++
++    // Name
++    var name = document.createElement('div');
++    name.className = 'profile-name';
++    name.textContent = user.Name;
++    card.appendChild(name);
++
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var hasPin = !!this.getUserPin(serverId, user.Id);
++    var storedToken = this.getUserToken(serverId, user.Id);
++
++    // Lock icon for password-protected or PIN-protected users (single icon)
++    if (user.HasPassword || hasPin) {
++        var lock = document.createElement('div');
++        lock.className = 'profile-lock';
++        lock.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
++        card.appendChild(lock);
++    }
++
++    // Stored PIN / token indicator
++    var isAutoSignIn = !hasPin && this.getAutoSignInUser(serverId) === user.Id;
++    if (hasPin) {
++        var pinProtected = document.createElement('div');
++        pinProtected.className = 'profile-remembered';
++        pinProtected.textContent = 'PIN protected';
++        card.appendChild(pinProtected);
++    } else if (isAutoSignIn) {
++        var autoBadge = document.createElement('div');
++        autoBadge.className = 'profile-remembered';
++        autoBadge.textContent = 'Auto sign-in';
++        card.appendChild(autoBadge);
++    } else if (storedToken) {
++        var remembered = document.createElement('div');
++        remembered.className = 'profile-remembered';
++        remembered.textContent = 'Remembered';
++        card.appendChild(remembered);
++    }
++
++    // Click/Enter handler
++    card.onclick = function () {
++        self.selectProfile(user);
++    };
++
++    card.onkeydown = function (e) {
++        if (e.keyCode === 13 || e.keyCode === 32) { // Enter or Space
++            e.preventDefault();
++            self.selectProfile(user);
++        }
++    };
++
++    return card;
++};
++
++/**
++ * Create "Add User" card for manual login
++ */
++PROFILES.prototype.createAddUserCard = function () {
++    var self = this;
++    var card = document.createElement('div');
++    card.className = 'profile-card profile-card-add';
++    card.tabIndex = this.users.length;
++
++    var icon = document.createElement('div');
++    icon.className = 'profile-avatar profile-avatar-placeholder';
++    icon.textContent = '+';
++    card.appendChild(icon);
++
++    var name = document.createElement('div');
++    name.className = 'profile-name';
++    name.textContent = 'Add User';
++    card.appendChild(name);
++
++    card.onclick = function () {
++        self.showManualLogin();
++    };
++
++    card.onkeydown = function (e) {
++        if (e.keyCode === 13 || e.keyCode === 32) {
++            e.preventDefault();
++            self.showManualLogin();
++        }
++    };
++
++    return card;
++};
++
++/**
++ * Handle profile selection
++ */
++PROFILES.prototype.selectProfile = function (user) {
++    var self = this;
++    this.selectedUser = user;
++
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var storedPin = this.getUserPin(serverId, user.Id);
++
++    if (storedPin) {
++        this.showNumericPin({
++            title: 'Enter PIN',
++            subtitle: user.Name,
++            mode: 'verify',
++            buttons: { cancel: true },
++            onComplete: function (enteredPin) {
++                if (enteredPin === storedPin) {
++                    self.hideNumericPin();
++                    self.proceedSelectProfile(user);
++                } else {
++                    self.numPinShowError('Incorrect PIN');
++                }
++            },
++            onCancel: function () {
++                self.showProfileSelection({ userId: user.Id, target: 'card' });
++            }
++        });
++        return;
++    }
++
++    this.proceedSelectProfile(user);
++};
++
++/**
++ * Continue profile selection after PIN verification (or when no PIN is set)
++ */
++PROFILES.prototype.proceedSelectProfile = function (user) {
++    var self = this;
++
++    // Check for stored token first
++    var storedToken = this.getUserToken(this.currentServer.id, user.Id);
++    if (storedToken) {
++        this.showLoading();
++        this.validateToken(this.currentServer.baseurl, user.Id, storedToken, function (validUser, token) {
++            self.hideLoading();
++            self.storeAuth(
++                self.currentServer.id,
++                validUser.Id || user.Id,
++                token,
++                validUser.Name || user.Name,
++                validUser.PrimaryImageTag || user.PrimaryImageTag || null,
++                validUser.HasPassword
++            );
++            self.hideProfileSelection();
++            self.onComplete(validUser, token);
++        }, function () {
++            self.hideLoading();
++            // Token invalid, clear token (preserve PIN) and prompt for password / manual login
++            self.clearToken(self.currentServer.id, user.Id);
++            if (user._saved) {
++                self.showManualLogin(user.Name);
++            } else if (user.HasPassword) {
++                self.showPinEntry(user);
++            } else {
++                self.authenticateWithoutPassword(user);
++            }
++        });
++        return;
++    }
++
++    if (user._saved) {
++        this.showManualLogin(user.Name);
++    } else if (user.HasPassword) {
++        this.showPinEntry(user);
++    } else {
++        this.authenticateWithoutPassword(user);
++    }
++};
++
++/**
++ * Manage PIN for a saved user profile
++ */
++PROFILES.prototype.manageProfile = function (user) {
++    var self = this;
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var existingPin = this.getUserPin(serverId, user.Id);
++
++    var refocusPinBtn = function () {
++        self.showProfileSelection({ userId: user.Id, target: 'pin' });
++    };
++
++    if (existingPin) {
++        this.showNumericPin({
++            title: 'Enter PIN',
++            subtitle: user.Name,
++            mode: 'verify',
++            buttons: { cancel: true },
++            onComplete: function (enteredPin) {
++                if (enteredPin === existingPin) {
++                    self.hideNumericPin();
++                    self.showNumericPin({
++                        title: 'Change PIN for ' + user.Name,
++                        subtitle: 'Enter a new 4-digit PIN',
++                        mode: 'manage',
++                        buttons: {
++                            remove: true,
++                            cancel: true
++                        },
++                        onComplete: function (newPin) {
++                            self.setUserPin(serverId, user.Id, newPin);
++                            self.hideNumericPin();
++                            refocusPinBtn();
++                        },
++                        onRemove: function () {
++                            self.clearUserPin(serverId, user.Id);
++                            self.hideNumericPin();
++                            refocusPinBtn();
++                        },
++                        onCancel: function () {
++                            refocusPinBtn();
++                        }
++                    });
++                } else {
++                    self.numPinShowError('Incorrect PIN');
++                }
++            },
++            onCancel: function () {
++                refocusPinBtn();
++            }
++        });
++    } else {
++        this.showNumericPin({
++            title: 'Set PIN for ' + user.Name,
++            subtitle: 'Enter a 4-digit PIN',
++            mode: 'set',
++            buttons: {
++                cancel: true
++            },
++            onComplete: function (newPin) {
++                self.setUserPin(serverId, user.Id, newPin);
++                self.hideNumericPin();
++                refocusPinBtn();
++            },
++            onCancel: function () {
++                refocusPinBtn();
++            }
++        });
++    }
++};
++
++/**
++ * Central post-login handler for fresh authentications
++ */
++PROFILES.prototype.finishLogin = function (user, token) {
++    var self = this;
++    this.hideLoading();
++    var serverId = this.currentServer ? (this.currentServer.id || this.currentServer.Id) : null;
++    var userId = user && user.Id;
++    var existingPin = userId ? this.getUserPin(serverId, userId) : null;
++    var skipped = userId ? this.isPinPromptSkipped(serverId, userId) : false;
++
++    if (userId && !existingPin && !skipped) {
++        var storedAuth = this.getStoredAuth(serverId);
++        var storedIds = Object.keys(storedAuth);
++        var hasOtherSavedUsers = false;
++        for (var i = 0; i < storedIds.length; i++) {
++            var uid = storedIds[i];
++            if (uid !== userId && storedAuth[uid] && (storedAuth[uid].token || storedAuth[uid].userName)) {
++                hasOtherSavedUsers = true;
++                break;
++            }
++        }
++
++        this.showNumericPin({
++            title: 'Set up ' + (user.Name || 'this profile'),
++            subtitle: 'Enter a 4-digit PIN, or choose an option below',
++            mode: 'set',
++            buttons: {
++                singleUser: true,
++                multiUser: true
++            },
++            initialFocus: hasOtherSavedUsers ? 'multiUser' : 'singleUser',
++            onComplete: function (pin) {
++                // setUserPin also clears auto sign-in if it pointed at this user
++                self.setUserPin(serverId, userId, pin);
++                self.hideNumericPin();
++                self.hideProfileSelection();
++                self.onComplete(user, token);
++            },
++            onSingleUser: function () {
++                self.setPinPromptSkipped(serverId, userId, true);
++                self.setAutoSignInUser(serverId, userId);
++                self.hideNumericPin();
++                self.hideProfileSelection();
++                self.onComplete(user, token);
++            },
++            onMultiUser: function () {
++                self.setPinPromptSkipped(serverId, userId, true);
++                self.setAutoSignInUser(serverId, null);
++                self.hideNumericPin();
++                self.users = self.getMergedUsers(self.publicUsers || []);
++                self.showProfileSelection({ userId: userId, target: 'card' });
++            }
++        });
++        return;
++    }
++
++    this.hideProfileSelection();
++    this.onComplete(user, token);
++};
++
++/**
++ * Authenticate user without password
++ */
++PROFILES.prototype.authenticateWithoutPassword = function (user) {
++    var self = this;
++    this.showLoading();
++
++    this.authenticateUser(this.currentServer.baseurl, user.Id, user.Name, '', function (response) {
++        self.finishLogin(response.User, response.AccessToken);
++    }, function (error) {
++        self.hideLoading();
++        self.showError(error);
++    });
++};
++
++/**
++ * Lock an input so focusing it does not auto-open webOS virtual keyboard
++ */
++PROFILES.prototype.lockInput = function (input) {
++    if (!input || input._jfUnlocking) return;
++    input.readOnly = true;
++    input.setAttribute('readonly', 'readonly');
++};
++
++/**
++ * Unlock an input and re-focus it so webOS virtual keyboard opens
++ */
++PROFILES.prototype.unlockInput = function (input) {
++    if (!input) return;
++    input.readOnly = false;
++    input.removeAttribute('readonly');
++    // Guard against blur listeners re-locking the input while we refocus it
++    input._jfUnlocking = true;
++    try {
++        input.blur();
++    } catch (e) {}
++    setTimeout(function () {
++        try {
++            input.readOnly = false;
++            input.removeAttribute('readonly');
++            input.focus();
++            if (typeof input.click === 'function') {
++                input.click();
++            }
++        } catch (e) {}
++        setTimeout(function () {
++            input._jfUnlocking = false;
++        }, 100);
++    }, 30);
++};
++
++/**
++ * Show PIN/Password entry overlay
++ */
++PROFILES.prototype.showPinEntry = function (user) {
++    var self = this;
++    var overlay = document.getElementById('pinOverlay');
++    var input = document.getElementById('pinInput');
++    var userName = document.getElementById('pinUserName');
++    var error = document.getElementById('pinError');
++    var buttonsContainer = overlay ? overlay.querySelector('.pin-buttons') : null;
++    var actionBtns = buttonsContainer ? buttonsContainer.querySelectorAll('button') : [];
++    var signInBtn = actionBtns.length > 0 ? actionBtns[0] : null;
++    var cancelBtn = actionBtns.length > 1 ? actionBtns[1] : null;
++
++    if (this._pinKeyHandler) {
++        input.removeEventListener('keydown', this._pinKeyHandler);
++        this._pinKeyHandler = null;
++    }
++    if (this._pinBlurHandler) {
++        input.removeEventListener('blur', this._pinBlurHandler);
++        this._pinBlurHandler = null;
++    }
++    if (this._pinClickHandler) {
++        input.removeEventListener('click', this._pinClickHandler);
++        this._pinClickHandler = null;
++    }
++    if (this._pinOverlayKeyHandler && overlay) {
++        overlay.removeEventListener('keydown', this._pinOverlayKeyHandler);
++        this._pinOverlayKeyHandler = null;
++    }
++
++    userName.textContent = user.Name;
++    input.value = '';
++    error.style.display = 'none';
++    this.lockInput(input);
++    overlay.style.display = 'flex';
++    input.focus();
++
++    this._pinBlurHandler = function () {
++        self.lockInput(input);
++    };
++    this._pinClickHandler = function () {
++        if (input.readOnly) {
++            self.unlockInput(input);
++        }
++    };
++
++    // Store current handler references for cleanup
++    this._pinKeyHandler = function (e) {
++        if (e.keyCode === 13) { // Enter
++            e.preventDefault();
++            e.stopPropagation();
++            if (input.readOnly) {
++                self.unlockInput(input);
++            } else {
++                self.lockInput(input);
++                self.submitPin();
++            }
++        } else if (e.keyCode === 461 || e.keyCode === 27) { // Back or Escape
++            e.preventDefault();
++            e.stopPropagation();
++            self.hidePinEntry();
++        }
++    };
++
++    this._pinOverlayKeyHandler = function (e) {
++        var code = e.keyCode || e.which;
++        var active = document.activeElement;
++
++        if (code === 461 || code === 27) {
++            e.preventDefault();
++            e.stopPropagation();
++            self.hidePinEntry();
++            return;
++        }
++
++        if (code < 37 || code > 40) return;
++
++        e.stopPropagation();
++
++        if (code === 38) { // Up
++            e.preventDefault();
++            if (active === input) {
++                self.lockInput(input);
++            } else {
++                self.lockInput(input);
++                input.focus();
++            }
++        } else if (code === 40) { // Down
++            e.preventDefault();
++            if (active === input) {
++                self.lockInput(input);
++                if (signInBtn) signInBtn.focus();
++            } else if (active !== signInBtn && active !== cancelBtn) {
++                self.lockInput(input);
++                input.focus();
++            }
++        } else if (code === 37) { // Left
++            if (active === cancelBtn && signInBtn) {
++                e.preventDefault();
++                signInBtn.focus();
++            } else if (active !== input || input.readOnly) {
++                e.preventDefault();
++            }
++        } else if (code === 39) { // Right
++            if (active === signInBtn && cancelBtn) {
++                e.preventDefault();
++                cancelBtn.focus();
++            } else if (active !== input || input.readOnly) {
++                e.preventDefault();
++            }
++        }
++    };
++
++    input.addEventListener('blur', this._pinBlurHandler);
++    input.addEventListener('click', this._pinClickHandler);
++    input.addEventListener('keydown', this._pinKeyHandler);
++    if (overlay) {
++        overlay.addEventListener('keydown', this._pinOverlayKeyHandler);
++    }
++};
++
++/**
++ * Hide PIN entry overlay
++ */
++PROFILES.prototype.hidePinEntry = function () {
++    var overlay = document.getElementById('pinOverlay');
++    var input = document.getElementById('pinInput');
++
++    this.lockInput(input);
++    overlay.style.display = 'none';
++    input.value = '';
++
++    if (this._pinKeyHandler) {
++        input.removeEventListener('keydown', this._pinKeyHandler);
++        this._pinKeyHandler = null;
++    }
++    if (this._pinBlurHandler) {
++        input.removeEventListener('blur', this._pinBlurHandler);
++        this._pinBlurHandler = null;
++    }
++    if (this._pinClickHandler) {
++        input.removeEventListener('click', this._pinClickHandler);
++        this._pinClickHandler = null;
++    }
++    if (this._pinOverlayKeyHandler && overlay) {
++        overlay.removeEventListener('keydown', this._pinOverlayKeyHandler);
++        this._pinOverlayKeyHandler = null;
++    }
++
++    // Refocus on the selected profile card
++    var cards = document.querySelectorAll('.profile-card');
++    if (cards.length > 0) {
++        cards[0].focus();
++    }
++};
++
++/**
++ * Submit PIN/Password
++ */
++PROFILES.prototype.submitPin = function () {
++    var self = this;
++    var input = document.getElementById('pinInput');
++    var error = document.getElementById('pinError');
++    var password = input.value;
++
++    if (!this.selectedUser) {
++        return;
++    }
++
++    this.lockInput(input);
++    error.style.display = 'none';
++    this.showLoading();
++
++    this.authenticateUser(
++        this.currentServer.baseurl,
++        this.selectedUser.Id,
++        this.selectedUser.Name,
++        password,
++        function (response) {
++            self.hidePinEntry();
++            self.finishLogin(response.User, response.AccessToken);
++        },
++        function (errMsg) {
++            self.hideLoading();
++            error.textContent = errMsg;
++            error.style.display = 'block';
++            input.value = '';
++            self.lockInput(input);
++            input.focus();
++        }
++    );
++};
++
++/**
++ * Show manual login form
++ */
++PROFILES.prototype.showManualLogin = function (prefillUsername) {
++    var self = this;
++    var overlay = document.getElementById('manualLoginOverlay');
++    var usernameInput = document.getElementById('manualUsername');
++    var passwordInput = document.getElementById('manualPassword');
++    var error = document.getElementById('manualLoginError');
++    var qcBtn = document.getElementById('manualQuickConnectBtn');
++    var qcDivider = document.getElementById('manualQuickConnectDivider');
++    var buttonsContainer = overlay ? overlay.querySelector('.manual-login-buttons') : null;
++    var actionBtns = buttonsContainer ? buttonsContainer.querySelectorAll('button') : [];
++    var signInBtn = actionBtns.length > 0 ? actionBtns[0] : null;
++    var cancelBtn = actionBtns.length > 1 ? actionBtns[1] : null;
++
++    if (this._manualLoginKeyHandler) {
++        usernameInput.removeEventListener('keydown', this._manualLoginKeyHandler);
++        passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
++        this._manualLoginKeyHandler = null;
++    }
++    if (this._manualUsernameBlurHandler) {
++        usernameInput.removeEventListener('blur', this._manualUsernameBlurHandler);
++        this._manualUsernameBlurHandler = null;
++    }
++    if (this._manualPasswordBlurHandler) {
++        passwordInput.removeEventListener('blur', this._manualPasswordBlurHandler);
++        this._manualPasswordBlurHandler = null;
++    }
++    if (this._manualUsernameClickHandler) {
++        usernameInput.removeEventListener('click', this._manualUsernameClickHandler);
++        this._manualUsernameClickHandler = null;
++    }
++    if (this._manualPasswordClickHandler) {
++        passwordInput.removeEventListener('click', this._manualPasswordClickHandler);
++        this._manualPasswordClickHandler = null;
++    }
++    if (this._manualOverlayKeyHandler && overlay) {
++        overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
++        this._manualOverlayKeyHandler = null;
++    }
++
++    if (qcBtn) {
++        qcBtn.style.display = this.quickConnectEnabled ? 'block' : 'none';
++    }
++    if (qcDivider) {
++        qcDivider.style.display = this.quickConnectEnabled ? 'block' : 'none';
++    }
++
++    usernameInput.value = typeof prefillUsername === 'string' ? prefillUsername : '';
++    passwordInput.value = '';
++    error.style.display = 'none';
++
++    this.lockInput(usernameInput);
++    this.lockInput(passwordInput);
++
++    overlay.style.display = 'flex';
++    if (usernameInput.value) {
++        passwordInput.focus();
++    } else {
++        usernameInput.focus();
++    }
++
++    this._manualUsernameBlurHandler = function () {
++        self.lockInput(usernameInput);
++    };
++    this._manualPasswordBlurHandler = function () {
++        self.lockInput(passwordInput);
++    };
++    this._manualUsernameClickHandler = function () {
++        if (usernameInput.readOnly) {
++            self.unlockInput(usernameInput);
++        }
++    };
++    this._manualPasswordClickHandler = function () {
++        if (passwordInput.readOnly) {
++            self.unlockInput(passwordInput);
++        }
++    };
++
++    this._manualLoginKeyHandler = function (e) {
++        if (e.keyCode === 13) { // Enter on inputs
++            e.preventDefault();
++            e.stopPropagation();
++            var target = e.currentTarget || e.target;
++            if (target.readOnly) {
++                self.unlockInput(target);
++            } else if (target === usernameInput) {
++                self.lockInput(usernameInput);
++                self.lockInput(passwordInput);
++                passwordInput.focus();
++                self.unlockInput(passwordInput);
++            } else if (target === passwordInput) {
++                self.lockInput(passwordInput);
++                self.submitManualLogin();
++            }
++        }
++    };
++
++    this._manualOverlayKeyHandler = function (e) {
++        var code = e.keyCode || e.which;
++        var active = document.activeElement;
++        var qcVisible = !!(qcBtn && qcBtn.style.display !== 'none');
++
++        if (code === 461 || code === 27) { // Back or Escape
++            e.preventDefault();
++            e.stopPropagation();
++            self.hideManualLogin();
++            return;
++        }
++
++        if (code < 37 || code > 40) return;
++
++        // Always stop propagation for arrows inside manual overlay so document.onkeydown never runs
++        e.stopPropagation();
++
++        if (code === 38) { // Up
++            e.preventDefault();
++            if (active === usernameInput || active === passwordInput) {
++                self.lockInput(active);
++            }
++            if (active === passwordInput) {
++                self.lockInput(usernameInput);
++                usernameInput.focus();
++            } else if (active === signInBtn || active === cancelBtn) {
++                self.lockInput(passwordInput);
++                passwordInput.focus();
++            } else if (active === qcBtn) {
++                if (signInBtn) signInBtn.focus();
++            } else if (active !== usernameInput) {
++                self.lockInput(usernameInput);
++                usernameInput.focus();
++            }
++        } else if (code === 40) { // Down
++            e.preventDefault();
++            if (active === usernameInput || active === passwordInput) {
++                self.lockInput(active);
++            }
++            if (active === usernameInput) {
++                self.lockInput(passwordInput);
++                passwordInput.focus();
++            } else if (active === passwordInput) {
++                if (signInBtn) signInBtn.focus();
++            } else if (active === signInBtn || active === cancelBtn) {
++                if (qcVisible) {
++                    qcBtn.focus();
++                } else if (active === signInBtn && cancelBtn) {
++                    cancelBtn.focus();
++                }
++            } else if (active !== qcBtn) {
++                self.lockInput(usernameInput);
++                usernameInput.focus();
++            }
++        } else if (code === 37) { // Left
++            if (active === cancelBtn && signInBtn) {
++                e.preventDefault();
++                signInBtn.focus();
++            } else if ((active !== usernameInput && active !== passwordInput) || active.readOnly) {
++                e.preventDefault();
++            }
++        } else if (code === 39) { // Right
++            if (active === signInBtn && cancelBtn) {
++                e.preventDefault();
++                cancelBtn.focus();
++            } else if ((active !== usernameInput && active !== passwordInput) || active.readOnly) {
++                e.preventDefault();
++            }
++        }
++    };
++
++    usernameInput.addEventListener('blur', this._manualUsernameBlurHandler);
++    passwordInput.addEventListener('blur', this._manualPasswordBlurHandler);
++    usernameInput.addEventListener('click', this._manualUsernameClickHandler);
++    passwordInput.addEventListener('click', this._manualPasswordClickHandler);
++    usernameInput.addEventListener('keydown', this._manualLoginKeyHandler);
++    passwordInput.addEventListener('keydown', this._manualLoginKeyHandler);
++    overlay.addEventListener('keydown', this._manualOverlayKeyHandler);
++};
++
++/**
++ * Hide manual login overlay
++ */
++PROFILES.prototype.hideManualLogin = function () {
++    var overlay = document.getElementById('manualLoginOverlay');
++    var usernameInput = document.getElementById('manualUsername');
++    var passwordInput = document.getElementById('manualPassword');
++
++    this.lockInput(usernameInput);
++    this.lockInput(passwordInput);
++
++    overlay.style.display = 'none';
++
++    if (this._manualLoginKeyHandler) {
++        usernameInput.removeEventListener('keydown', this._manualLoginKeyHandler);
++        passwordInput.removeEventListener('keydown', this._manualLoginKeyHandler);
++        this._manualLoginKeyHandler = null;
++    }
++    if (this._manualUsernameBlurHandler) {
++        usernameInput.removeEventListener('blur', this._manualUsernameBlurHandler);
++        this._manualUsernameBlurHandler = null;
++    }
++    if (this._manualPasswordBlurHandler) {
++        passwordInput.removeEventListener('blur', this._manualPasswordBlurHandler);
++        this._manualPasswordBlurHandler = null;
++    }
++    if (this._manualUsernameClickHandler) {
++        usernameInput.removeEventListener('click', this._manualUsernameClickHandler);
++        this._manualUsernameClickHandler = null;
++    }
++    if (this._manualPasswordClickHandler) {
++        passwordInput.removeEventListener('click', this._manualPasswordClickHandler);
++        this._manualPasswordClickHandler = null;
++    }
++    if (this._manualOverlayKeyHandler && overlay) {
++        overlay.removeEventListener('keydown', this._manualOverlayKeyHandler);
++        this._manualOverlayKeyHandler = null;
++    }
++
++    var cards = document.querySelectorAll('.profile-card');
++    if (cards.length > 0) {
++        cards[0].focus();
++    }
++};
++
++/**
++ * Submit manual login
++ */
++PROFILES.prototype.submitManualLogin = function () {
++    var self = this;
++    var usernameInput = document.getElementById('manualUsername');
++    var passwordInput = document.getElementById('manualPassword');
++    var error = document.getElementById('manualLoginError');
++    var username = usernameInput.value.trim();
++    var password = passwordInput.value;
++
++    this.lockInput(usernameInput);
++    this.lockInput(passwordInput);
++
++    if (!username) {
++        error.textContent = 'Please enter a username';
++        error.style.display = 'block';
++        usernameInput.focus();
++        return;
++    }
++
++    error.style.display = 'none';
++    this.showLoading();
++
++    this.authenticateUser(
++        this.currentServer.baseurl,
++        null,
++        username,
++        password,
++        function (response) {
++            self.hideManualLogin();
++            self.finishLogin(response.User, response.AccessToken);
++        },
++        function (errMsg) {
++            self.hideLoading();
++            error.textContent = errMsg;
++            error.style.display = 'block';
++            passwordInput.value = '';
++            self.lockInput(passwordInput);
++            passwordInput.focus();
++        }
++    );
++};
++
++/**
++ * Hide profile selection UI
++ */
++PROFILES.prototype.hideProfileSelection = function () {
++    document.getElementById('profileSelection').style.display = 'none';
++};
++
++/**
++ * Show loading indicator
++ */
++PROFILES.prototype.showLoading = function () {
++    document.getElementById('profileLoading').style.display = 'flex';
++};
++
++/**
++ * Hide loading indicator
++ */
++PROFILES.prototype.hideLoading = function () {
++    document.getElementById('profileLoading').style.display = 'none';
++};
++
++/**
++ * Show error message
++ */
++PROFILES.prototype.showError = function (message) {
++    var error = document.getElementById('profileError');
++    error.textContent = message;
++    error.style.display = 'block';
++    setTimeout(function () {
++        error.style.display = 'none';
++    }, 3000);
++};
++
++/**
++ * Show numeric PIN pad overlay
++ */
++PROFILES.prototype.showNumericPin = function (options) {
++    var self = this;
++    options = options || {};
++    var buttons = options.buttons || {};
++    var mode = options.mode || 'verify';
++
++    this.hideNumericPin();
++
++    var overlay = document.getElementById('numericPinOverlay');
++    var titleEl = document.getElementById('numPinTitle');
++    var subtitleEl = document.getElementById('numPinSubtitle');
++    var dotsContainer = document.getElementById('numPinDots');
++    var dots = dotsContainer ? dotsContainer.querySelectorAll('.num-pin-dot') : [];
++    var errorEl = document.getElementById('numPinError');
++    var pad = document.getElementById('numPinPad');
++    var keys = pad ? Array.prototype.slice.call(pad.querySelectorAll('.num-pin-key')) : [];
++
++    var btnSingle = document.getElementById('numPinSingleUser');
++    var btnMulti = document.getElementById('numPinMultiUser');
++    var btnSkip = document.getElementById('numPinSkip');
++    var btnRemove = document.getElementById('numPinRemove');
++    var btnForget = document.getElementById('numPinForget');
++    var btnCancel = document.getElementById('numPinCancel');
++
++    var initialTitle = options.title || 'Enter PIN';
++    var initialSubtitle = options.subtitle || '';
++
++    titleEl.textContent = initialTitle;
++    subtitleEl.textContent = initialSubtitle;
++    errorEl.textContent = '';
++    errorEl.style.display = 'none';
++    if (dotsContainer) {
++        dotsContainer.classList.remove('shake');
++    }
++
++    if (btnSingle) {
++        btnSingle.style.display = buttons.singleUser ? 'inline-block' : 'none';
++    }
++    if (btnMulti) {
++        btnMulti.style.display = buttons.multiUser ? 'inline-block' : 'none';
++    }
++    btnSkip.style.display = buttons.skip ? 'inline-block' : 'none';
++    btnRemove.style.display = buttons.remove ? 'inline-block' : 'none';
++    btnForget.style.display = buttons.forget ? 'inline-block' : 'none';
++    btnCancel.style.display = buttons.cancel ? 'inline-block' : 'none';
++
++    this._numPinState = {
++        digits: '',
++        mode: mode,
++        step: 1,
++        firstPin: '',
++        initialTitle: initialTitle,
++        initialSubtitle: initialSubtitle,
++        options: options
++    };
++
++    var updateDots = function () {
++        var len = self._numPinState ? self._numPinState.digits.length : 0;
++        for (var i = 0; i < dots.length; i++) {
++            if (i < len) {
++                dots[i].classList.add('filled');
++            } else {
++                dots[i].classList.remove('filled');
++            }
++        }
++    };
++
++    updateDots();
++
++    var handleComplete = function (enteredPin) {
++        var state = self._numPinState;
++        if (!state) return;
++
++        if (state.mode === 'set' || state.mode === 'manage') {
++            if (state.step === 1) {
++                state.firstPin = enteredPin;
++                state.step = 2;
++                state.digits = '';
++                titleEl.textContent = 'Confirm PIN';
++                subtitleEl.textContent = 'Re-enter the 4-digit PIN';
++                errorEl.style.display = 'none';
++                updateDots();
++                return;
++            }
++            if (enteredPin !== state.firstPin) {
++                state.step = 1;
++                state.firstPin = '';
++                state.digits = '';
++                titleEl.textContent = state.initialTitle;
++                subtitleEl.textContent = state.initialSubtitle;
++                self.numPinShowError('PINs did not match. Try again.');
++                return;
++            }
++        }
++
++        if (options.onComplete) {
++            options.onComplete(enteredPin);
++        }
++    };
++
++    var handleKeyInput = function (keyVal) {
++        var state = self._numPinState;
++        if (!state) return;
++
++        if (keyVal === 'clear') {
++            state.digits = '';
++            errorEl.style.display = 'none';
++            updateDots();
++            return;
++        }
++
++        if (keyVal === 'back') {
++            if (state.digits.length > 0) {
++                state.digits = state.digits.slice(0, -1);
++                updateDots();
++            }
++            return;
++        }
++
++        if (/^[0-9]$/.test(keyVal) && state.digits.length < 4) {
++            errorEl.style.display = 'none';
++            state.digits += keyVal;
++            updateDots();
++            if (state.digits.length === 4) {
++                var completedPin = state.digits;
++                setTimeout(function () {
++                    handleComplete(completedPin);
++                }, 80);
++            }
++        }
++    };
++
++    keys.forEach(function (btn) {
++        btn.onclick = function (e) {
++            e.preventDefault();
++            e.stopPropagation();
++            handleKeyInput(btn.getAttribute('data-key'));
++        };
++    });
++
++    if (btnSingle) {
++        btnSingle.onclick = function (e) {
++            e.preventDefault();
++            e.stopPropagation();
++            if (options.onSingleUser) {
++                options.onSingleUser();
++            }
++        };
++    }
++
++    if (btnMulti) {
++        btnMulti.onclick = function (e) {
++            e.preventDefault();
++            e.stopPropagation();
++            if (options.onMultiUser) {
++                options.onMultiUser();
++            }
++        };
++    }
++
++    btnSkip.onclick = function (e) {
++        e.preventDefault();
++        e.stopPropagation();
++        if (options.onSkip) {
++            options.onSkip();
++        } else {
++            self.hideNumericPin();
++        }
++    };
++
++    btnRemove.onclick = function (e) {
++        e.preventDefault();
++        e.stopPropagation();
++        if (options.onRemove) {
++            options.onRemove();
++        }
++    };
++
++    btnForget.onclick = function (e) {
++        e.preventDefault();
++        e.stopPropagation();
++        if (options.onForget) {
++            options.onForget();
++        }
++    };
++
++    btnCancel.onclick = function (e) {
++        e.preventDefault();
++        e.stopPropagation();
++        self.hideNumericPin();
++        if (options.onCancel) {
++            options.onCancel();
++        }
++    };
++
++    var getVisibleActions = function () {
++        var list = [btnSingle, btnMulti, btnSkip, btnRemove, btnForget, btnCancel];
++        return list.filter(function (b) {
++            return b && b.style.display !== 'none';
++        });
++    };
++
++    this._numPinKeyHandler = function (e) {
++        if (!overlay || overlay.style.display !== 'flex') return;
++        e.stopPropagation();
++        if (e.stopImmediatePropagation) {
++            e.stopImmediatePropagation();
++        }
++
++        var code = e.keyCode || e.which;
++
++        // Top row numbers 0-9 (48-57)
++        if (code >= 48 && code <= 57) {
++            e.preventDefault();
++            handleKeyInput(String(code - 48));
++            return;
++        }
++
++        // Numpad numbers 0-9 (96-105)
++        if (code >= 96 && code <= 105) {
++            e.preventDefault();
++            handleKeyInput(String(code - 96));
++            return;
++        }
++
++        // Backspace
++        if (code === 8) {
++            e.preventDefault();
++            handleKeyInput('back');
++            return;
++        }
++
++        // Back (461) or Escape (27)
++        if (code === 461 || code === 27) {
++            e.preventDefault();
++            if (buttons.cancel) {
++                self.hideNumericPin();
++                if (options.onCancel) {
++                    options.onCancel();
++                }
++            }
++            return;
++        }
++
++        // Enter (13) or Space (32)
++        if (code === 13 || code === 32) {
++            var active = document.activeElement;
++            if (active && overlay.contains(active) && typeof active.click === 'function') {
++                e.preventDefault();
++                active.click();
++            }
++            return;
++        }
++
++        // D-pad arrows (37-40)
++        if (code >= 37 && code <= 40) {
++            e.preventDefault();
++            var activeEl = document.activeElement;
++            var keyIdx = keys.indexOf(activeEl);
++            var visibleActions = getVisibleActions();
++            var actionIdx = visibleActions.indexOf(activeEl);
++
++            if (keyIdx !== -1) {
++                var row = Math.floor(keyIdx / 3);
++                var col = keyIdx % 3;
++                if (code === 37 && col > 0) {
++                    keys[keyIdx - 1].focus();
++                } else if (code === 39 && col < 2) {
++                    keys[keyIdx + 1].focus();
++                } else if (code === 38 && row > 0) {
++                    keys[keyIdx - 3].focus();
++                } else if (code === 40) {
++                    if (row < 3) {
++                        keys[keyIdx + 3].focus();
++                    } else if (visibleActions.length > 0) {
++                        var targetAction = Math.min(col, visibleActions.length - 1);
++                        visibleActions[targetAction].focus();
++                    }
++                }
++            } else if (actionIdx !== -1) {
++                if (code === 37 && actionIdx > 0) {
++                    visibleActions[actionIdx - 1].focus();
++                } else if (code === 39 && actionIdx < visibleActions.length - 1) {
++                    visibleActions[actionIdx + 1].focus();
++                } else if (code === 38 && keys.length >= 12) {
++                    var targetCol = Math.min(2, actionIdx);
++                    keys[9 + targetCol].focus();
++                }
++            } else if (keys.length > 0) {
++                keys[0].focus();
++            }
++        }
++    };
++
++    overlay.style.display = 'flex';
++    document.addEventListener('keydown', this._numPinKeyHandler, true);
++
++    if (options.initialFocus === 'singleUser' && btnSingle && buttons.singleUser) {
++        btnSingle.focus();
++    } else if (options.initialFocus === 'multiUser' && btnMulti && buttons.multiUser) {
++        btnMulti.focus();
++    } else if (keys.length > 0) {
++        keys[0].focus();
++    }
++};
++
++/**
++ * Show error on numeric PIN pad, shake dots, and clear entry
++ */
++PROFILES.prototype.numPinShowError = function (msg) {
++    var dotsContainer = document.getElementById('numPinDots');
++    var dots = dotsContainer ? dotsContainer.querySelectorAll('.num-pin-dot') : [];
++    var errorEl = document.getElementById('numPinError');
++
++    if (this._numPinState) {
++        this._numPinState.digits = '';
++    }
++
++    for (var i = 0; i < dots.length; i++) {
++        dots[i].classList.remove('filled');
++    }
++
++    if (errorEl) {
++        errorEl.textContent = msg || 'Incorrect PIN';
++        errorEl.style.display = 'block';
++    }
++
++    if (dotsContainer) {
++        dotsContainer.classList.remove('shake');
++        void dotsContainer.offsetWidth;
++        dotsContainer.classList.add('shake');
++        setTimeout(function () {
++            dotsContainer.classList.remove('shake');
++        }, 400);
++    }
++};
++
++/**
++ * Hide numeric PIN pad overlay
++ */
++PROFILES.prototype.hideNumericPin = function () {
++    var overlay = document.getElementById('numericPinOverlay');
++    if (overlay) {
++        overlay.style.display = 'none';
++    }
++    if (this._numPinKeyHandler) {
++        document.removeEventListener('keydown', this._numPinKeyHandler, true);
++        this._numPinKeyHandler = null;
++    }
++    this._numPinState = null;
++};
++
++/**
++ * Set up keyboard/remote navigation
++ */
++PROFILES.prototype.setupNavigation = function () {
++    var self = this;
++    var container = document.getElementById('profileSelection');
++    var grid = document.getElementById('profileGrid');
++    var backBtn = document.getElementById('profileBackBtn');
++    if (!container || !grid) return;
++
++    grid.onkeydown = null;
++
++    var isOverlayOpen = function () {
++        var ids = ['numericPinOverlay', 'manualLoginOverlay', 'quickConnectOverlay', 'pinOverlay'];
++        for (var i = 0; i < ids.length; i++) {
++            var el = document.getElementById(ids[i]);
++            if (el && el.style.display === 'flex') {
++                return true;
++            }
++        }
++        return false;
++    };
++
++    container.onkeydown = function (e) {
++        if (isOverlayOpen()) return;
++
++        var code = e.keyCode || e.which;
++
++        if (code === 461 || code === 27) {
++            e.preventDefault();
++            e.stopPropagation();
++            self.goBack();
++            return;
++        }
++
++        if (code < 37 || code > 40) return;
++
++        e.preventDefault();
++        e.stopPropagation();
++
++        var colEls = Array.prototype.slice.call(grid.querySelectorAll('.profile-column'));
++        var columns = [];
++        for (var c = 0; c < colEls.length; c++) {
++            var isSelected = colEls[c].classList && colEls[c].classList.contains('is-selected');
++            var selector = isSelected ? '.profile-card, .profile-action-btn' : '.profile-card';
++            var focusables = Array.prototype.slice.call(
++                colEls[c].querySelectorAll(selector)
++            );
++            if (focusables.length > 0) {
++                columns.push(focusables);
++            }
++        }
++
++        if (columns.length === 0) return;
++
++        var active = document.activeElement;
++
++        if (active === backBtn) {
++            if (code === 40) { // Down from Back button -> first card
++                columns[0][0].focus();
++            }
++            return;
++        }
++
++        var colIdx = -1;
++        var rowIdx = -1;
++        for (var i = 0; i < columns.length; i++) {
++            var r = columns[i].indexOf(active);
++            if (r !== -1) {
++                colIdx = i;
++                rowIdx = r;
++                break;
++            }
++        }
++
++        if (colIdx === -1) {
++            columns[0][0].focus();
++            return;
++        }
++
++        if (code === 37) { // Left
++            if (colIdx > 0) {
++                columns[colIdx - 1][0].focus();
++            }
++        } else if (code === 39) { // Right
++            if (colIdx < columns.length - 1) {
++                columns[colIdx + 1][0].focus();
++            }
++        } else if (code === 38) { // Up
++            if (rowIdx > 0) {
++                columns[colIdx][rowIdx - 1].focus();
++            } else if (rowIdx === 0 && backBtn && backBtn.offsetParent !== null) {
++                backBtn.focus();
++            }
++        } else if (code === 40) { // Down
++            if (rowIdx < columns[colIdx].length - 1) {
++                columns[colIdx][rowIdx + 1].focus();
++            }
++        }
++    };
++};
++
++/**
++ * Go back to server selection
++ */
++PROFILES.prototype.goBack = function () {
++    this.stopQuickConnectPolling();
++    this.hideQuickConnect();
++    this.hideNumericPin();
++    this.hideProfileSelection();
++    this.hidePinEntry();
++    this.hideManualLogin();
++    document.querySelector('.container').style.display = '';
++    hideConnecting();
++};
++
++// ==================== QUICK CONNECT ====================
++
++/**
++ * Check if Quick Connect is enabled on the server
++ */
++PROFILES.prototype.checkQuickConnectEnabled = function (baseurl, callback) {
++    ajax.request(normalizeUrl(baseurl + '/QuickConnect/Enabled'), {
++        method: 'GET',
++        success: function (data) {
++            // Response is a boolean or string "true"/"false"
++            var enabled = data === true || data === 'true' || data === 'True';
++            callback(enabled);
++        },
++        error: function () {
++            callback(false);
++        },
++        timeout: 5000
++    });
++};
++
++/**
++ * Initiate Quick Connect session
++ */
++PROFILES.prototype.initiateQuickConnect = function (callback, errorCallback) {
++    var self = this;
++
++    var xhr = new XMLHttpRequest();
++    xhr.open('POST', normalizeUrl(this.currentServer.baseurl + '/QuickConnect/Initiate'));
++    this.setAuthHeaders(xhr);
++    xhr.timeout = 10000;
++
++    xhr.onload = function () {
++        if (xhr.status === 200) {
++            try {
++                var response = JSON.parse(xhr.responseText);
++                if (response.Code && response.Secret) {
++                    self.quickConnectCode = response.Code;
++                    self.quickConnectSecret = response.Secret;
++                    callback(response);
++                } else {
++                    errorCallback('Invalid Quick Connect response');
++                }
++            } catch (e) {
++                errorCallback('Failed to parse Quick Connect response');
++            }
++        } else if (xhr.status === 401) {
++            errorCallback('Quick Connect is not enabled on this server');
++        } else {
++            errorCallback('Quick Connect failed: ' + xhr.status);
++        }
++    };
++
++    xhr.onerror = function () {
++        errorCallback('Network error');
++    };
++
++    xhr.ontimeout = function () {
++        errorCallback('Request timed out');
++    };
++
++    xhr.send();
++};
++
++/**
++ * Poll Quick Connect status
++ */
++PROFILES.prototype.pollQuickConnect = function (callback, errorCallback) {
++    var self = this;
++    if (!this.quickConnectSecret) {
++        errorCallback('No Quick Connect session');
++        return;
++    }
++
++    var xhr = new XMLHttpRequest();
++    xhr.open('GET', normalizeUrl(this.currentServer.baseurl + '/QuickConnect/Connect?secret=' + encodeURIComponent(this.quickConnectSecret)));
++    this.setAuthHeaders(xhr);
++    xhr.timeout = 10000;
++
++    xhr.onload = function () {
++        if (xhr.status === 200) {
++            try {
++                var response = JSON.parse(xhr.responseText);
++                callback(response);
++            } catch (e) {
++                errorCallback('Invalid response');
++            }
++        } else {
++            errorCallback('Poll failed: ' + xhr.status);
++        }
++    };
++
++    xhr.onerror = function () {
++        errorCallback('Network error');
++    };
++
++    xhr.ontimeout = function () {
++        errorCallback('Request timed out');
++    };
++
++    xhr.send();
++};
++
++/**
++ * Authenticate with Quick Connect secret
++ */
++PROFILES.prototype.authenticateWithQuickConnect = function (callback, errorCallback) {
++    var self = this;
++    if (!this.quickConnectSecret) {
++        errorCallback('No Quick Connect session');
++        return;
++    }
++
++    var xhr = new XMLHttpRequest();
++    xhr.open('POST', normalizeUrl(this.currentServer.baseurl + '/Users/AuthenticateWithQuickConnect'));
++    xhr.setRequestHeader('Content-Type', 'application/json');
++    this.setAuthHeaders(xhr);
++    xhr.timeout = 10000;
++
++    xhr.onload = function () {
++        if (xhr.status === 200) {
++            try {
++                var response = JSON.parse(xhr.responseText);
++                if (response.AccessToken && response.User) {
++                    // Update server ID with the real ServerId from Jellyfin
++                    // This is crucial for credential injection to work correctly
++                    if (response.ServerId && self.currentServer) {
++                        console.log('Quick Connect: Updating server ID from', self.currentServer.id, 'to', response.ServerId);
++                        self.currentServer.id = response.ServerId;
++                        self.currentServer.Id = response.ServerId;
++                    }
++                    
++                    self.storeAuth(
++                        self.currentServer.id,
++                        response.User.Id,
++                        response.AccessToken,
++                        response.User.Name,
++                        response.User.PrimaryImageTag || null,
++                        response.User.HasPassword !== undefined ? response.User.HasPassword : false
++                    );
++                    callback(response);
++                } else {
++                    errorCallback('Invalid authentication response');
++                }
++            } catch (e) {
++                errorCallback('Failed to parse response');
++            }
++        } else {
++            errorCallback('Authentication failed: ' + xhr.status);
++        }
++    };
++
++    xhr.onerror = function () {
++        errorCallback('Network error');
++    };
++
++    xhr.ontimeout = function () {
++        errorCallback('Request timed out');
++    };
++
++    xhr.send(JSON.stringify({
++        Secret: this.quickConnectSecret
++    }));
++};
++
++/**
++ * Show Quick Connect overlay
++ */
++PROFILES.prototype.showQuickConnect = function () {
++    var self = this;
++    var overlay = document.getElementById('quickConnectOverlay');
++    var codeDisplay = document.getElementById('quickConnectCode');
++    var status = document.getElementById('quickConnectStatus');
++    var error = document.getElementById('quickConnectError');
++    var cancelBtn = overlay ? overlay.querySelector('.quickconnect-buttons button') : null;
++
++    // Reset state
++    codeDisplay.textContent = '------';
++    status.textContent = 'Generating code...';
++    error.style.display = 'none';
++    overlay.style.display = 'flex';
++    if (cancelBtn) {
++        cancelBtn.focus();
++    }
++
++    overlay.onkeydown = function (e) {
++        var code = e.keyCode || e.which;
++        if (code === 461 || code === 27) {
++            e.preventDefault();
++            e.stopPropagation();
++            self.hideQuickConnect();
++        }
++    };
++
++    // Initiate Quick Connect
++    this.initiateQuickConnect(function (response) {
++        codeDisplay.textContent = response.Code;
++        status.textContent = 'Enter this code in another Jellyfin app';
++        self.startQuickConnectPolling();
++    }, function (errMsg) {
++        error.textContent = errMsg;
++        error.style.display = 'block';
++        status.textContent = 'Failed to start Quick Connect';
++    });
++};
++
++/**
++ * Hide Quick Connect overlay
++ */
++PROFILES.prototype.hideQuickConnect = function () {
++    var overlay = document.getElementById('quickConnectOverlay');
++    if (overlay) {
++        overlay.style.display = 'none';
++        overlay.onkeydown = null;
++    }
++    this.stopQuickConnectPolling();
++    this.quickConnectSecret = null;
++    this.quickConnectCode = null;
++
++    // Refocus on profile grid
++    var cards = document.querySelectorAll('.profile-card');
++    if (cards.length > 0) {
++        cards[0].focus();
++    }
++};
++
++/**
++ * Start polling for Quick Connect authorization
++ */
++PROFILES.prototype.startQuickConnectPolling = function () {
++    var self = this;
++    this.stopQuickConnectPolling(); // Clear any existing interval
++
++    this.quickConnectPollInterval = setInterval(function () {
++        self.pollQuickConnect(function (response) {
++            if (response.Authenticated) {
++                self.stopQuickConnectPolling();
++                var status = document.getElementById('quickConnectStatus');
++                status.textContent = 'Authorized! Signing in...';
++
++                self.authenticateWithQuickConnect(function (authResponse) {
++                    self.hideQuickConnect();
++                    self.finishLogin(authResponse.User, authResponse.AccessToken);
++                }, function (errMsg) {
++                    var error = document.getElementById('quickConnectError');
++                    error.textContent = errMsg;
++                    error.style.display = 'block';
++                    status.textContent = 'Authentication failed';
++                });
++            }
++        }, function (errMsg) {
++            console.warn('Quick Connect poll error:', errMsg);
++            // Continue polling unless it's a critical error
++        });
++    }, 2000); // Poll every 2 seconds
++};
++
++/**
++ * Stop polling for Quick Connect
++ */
++PROFILES.prototype.stopQuickConnectPolling = function () {
++    if (this.quickConnectPollInterval) {
++        clearInterval(this.quickConnectPollInterval);
++        this.quickConnectPollInterval = null;
++    }
++};
+diff --git a/package.json b/package.json
+index c2f7046..01c9ab4 100644
+--- a/package.json
++++ b/package.json
+@@ -1,16 +1,16 @@
+ {
+-  "name": "org.jellyfin.webos",
+-  "version": "1.2.2",
+-  "description": "Jellyfin WebOS client",
++  "name": "nl.timsas.jellyfin.multiuser",
++  "version": "1.0.0",
++  "description": "Jellyfin WebOS client with multi-user profile switcher and PIN lock",
+   "scripts": {
+     "check": "ares-package --check",
+     "package": "ares-package --no-minify --outdir build/ services frontend",
+     "clean": "rm -rf build/",
+-    "deploy": "ares-install build/org.jellyfin.webos_${npm_package_version}_all.ipk",
+-    "launch": "ares-launch org.jellyfin.webos",
+-    "manifest": "node tools/gen-manifest.js build/org.jellyfin.webos.manifest.json",
++    "deploy": "ares-install build/nl.timsas.jellyfin.multiuser_${npm_package_version}_all.ipk",
++    "launch": "ares-launch nl.timsas.jellyfin.multiuser",
++    "manifest": "node tools/gen-manifest.js build/nl.timsas.jellyfin.multiuser.manifest.json",
+     "version": "node tools/sync-version.js && git add frontend/appinfo.json",
+-    "test": "echo \"Error: no test specified\" && exit 1"
++    "test": "node tools/verify-code.js && ares-package --check services frontend"
+   },
+   "author": "Jellyfin contributors",
+   "license": "MPL-2.0",
+diff --git a/services/package.json b/services/package.json
+index 1d1731c..e0d09a5 100644
+--- a/services/package.json
++++ b/services/package.json
+@@ -1,5 +1,5 @@
+ {
+-  "name": "org.jellyfin.webos.service",
++  "name": "nl.timsas.jellyfin.multiuser.service",
+   "description": "Jellyfin Discovery Service",
+   "main": "service.js"
+ }
+\ No newline at end of file
+diff --git a/services/services.json b/services/services.json
+index 5526841..5d3d365 100644
+--- a/services/services.json
++++ b/services/services.json
+@@ -1,9 +1,9 @@
+ {
+-  "id": "org.jellyfin.webos.service",
++  "id": "nl.timsas.jellyfin.multiuser.service",
+   "description": "Jellyfin Discovery Service",
+   "services": [
+     {
+-      "name": "org.jellyfin.webos.service"
++      "name": "nl.timsas.jellyfin.multiuser.service"
+     }
+   ]
+ }
+diff --git a/tools/gen-manifest.js b/tools/gen-manifest.js
+index cd5251b..cac8c27 100644
+--- a/tools/gen-manifest.js
++++ b/tools/gen-manifest.js
+@@ -16,10 +16,11 @@ fs.writeFileSync(
+     type: appinfo.type,
+     title: appinfo.title,
+     appDescription: appinfo.appDescription,
+-    iconUri: 'https://github.com/jellyfin/jellyfin-webos/raw/master/org.jellyfin.webos/submission-icon.png',
+-    sourceUrl: 'https://github.com/jellyfin/jellyfin-webos',
++    iconUri: 'https://raw.githubusercontent.com/OudeKaas69/jellyfin-multiuser/master/frontend/assets/icon-160.png',
++    sourceUrl: 'https://github.com/OudeKaas69/jellyfin-multiuser',
+     rootRequired: false,
+     ipkUrl: ipkfile,
++    ipkSize: fs.statSync(`build/${ipkfile}`).size,
+     ipkHash: {
+       sha256: ipkhash,
+     },
+diff --git a/tools/upstream-check.sh b/tools/upstream-check.sh
+new file mode 100644
+index 0000000..6dbc5c2
+--- /dev/null
++++ b/tools/upstream-check.sh
+@@ -0,0 +1,255 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
++
++BASELINE_FILE="${BASELINE_FILE:-${REPO_ROOT}/.upstream-sha}"
++UPSTREAM_REPO="${UPSTREAM_REPO:-jellyfin/jellyfin-webos}"
++UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-master}"
++UPSTREAM_GIT_URL="https://github.com/${UPSTREAM_REPO}.git"
++
++FORGEJO_API="${FORGEJO_API:-https://forgejo.timsas.nl/api/v1}"
++FORGEJO_WEB="${FORGEJO_WEB:-https://forgejo.timsas.nl}"
++REPO="${REPO:-tsas/jellyfin-webos}"
++TOKEN="${TOKEN:-${FORGEJO_TOKEN:-${GITHUB_TOKEN:-}}}"
++DRY_RUN="${DRY_RUN:-0}"
++
++if [[ ! -f "${BASELINE_FILE}" ]]; then
++  echo "Error: baseline file not found at ${BASELINE_FILE}" >&2
++  exit 1
++fi
++
++BASE="$(tr -d '[:space:]' < "${BASELINE_FILE}")"
++if [[ -z "${BASE}" ]]; then
++  echo "Error: baseline SHA in ${BASELINE_FILE} is empty" >&2
++  exit 1
++fi
++
++echo "Checking upstream ${UPSTREAM_REPO} (${UPSTREAM_BRANCH})..."
++echo "Tracked baseline SHA: ${BASE}"
++
++LATEST="$(git ls-remote "${UPSTREAM_GIT_URL}" "refs/heads/${UPSTREAM_BRANCH}" | awk '{print $1}')"
++if [[ -z "${LATEST}" ]]; then
++  echo "Error: failed to resolve upstream HEAD from ${UPSTREAM_GIT_URL}" >&2
++  exit 1
++fi
++
++echo "Latest upstream SHA:  ${LATEST}"
++
++RELEASE_JSON="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" 2>/dev/null || true)"
++LATEST_RELEASE="$(RELEASE_JSON="${RELEASE_JSON}" node -e '
++  const raw = process.env.RELEASE_JSON || "";
++  if (!raw) { console.log("unknown"); process.exit(0); }
++  try {
++    const data = JSON.parse(raw);
++    const tag = data.tag_name || data.name || "unknown";
++    const url = data.html_url || "";
++    console.log(url ? `${tag} (${url})` : tag);
++  } catch {
++    console.log("unknown");
++  }
++')"
++echo "Latest upstream release: ${LATEST_RELEASE}"
++
++if [[ "${LATEST}" == "${BASE}" ]]; then
++  echo "up to date (baseline matches upstream ${UPSTREAM_BRANCH}: ${LATEST})"
++  exit 0
++fi
++
++SHORT_BASE="${BASE:0:7}"
++SHORT_LATEST="${LATEST:0:7}"
++COMPARE_URL="https://github.com/${UPSTREAM_REPO}/compare/${BASE}...${LATEST}"
++
++echo "Upstream changes detected: ${SHORT_BASE} -> ${SHORT_LATEST}"
++echo "Compare URL: ${COMPARE_URL}"
++
++COMPARE_JSON="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${UPSTREAM_REPO}/compare/${BASE}...${LATEST}" 2>/dev/null || true)"
++
++ parsed_compare="$(COMPARE_JSON="${COMPARE_JSON}" node -e '
++  const raw = process.env.COMPARE_JSON || "";
++  if (!raw) {
++    console.log(JSON.stringify({ total_commits: "unknown", commits_md: "_Commit details unavailable (GitHub API call failed)._" }));
++    process.exit(0);
++  }
++  try {
++    const data = JSON.parse(raw);
++    const total = typeof data.total_commits === "number" ? data.total_commits : (Array.isArray(data.commits) ? data.commits.length : "unknown");
++    const commits = Array.isArray(data.commits) ? data.commits : [];
++    const slice = commits.slice(0, 20);
++    const lines = slice.map(c => {
++      const sha = (c.sha || "").slice(0, 7);
++      const msg = ((c.commit && c.commit.message) || "").split(/\r?\n/)[0];
++      const author = (c.author && c.author.login) || (c.commit && c.commit.author && c.commit.author.name) || "unknown";
++      return `- \`${sha}\` ${msg} (${author})`;
++    });
++    if (commits.length > 20) {
++      lines.push(`- _...and ${commits.length - 20} more commit(s)_`);
++    }
++    const md = lines.length > 0 ? lines.join("\n") : "_No commits listed in compare response._";
++    console.log(JSON.stringify({ total_commits: String(total), commits_md: md }));
++  } catch {
++    console.log(JSON.stringify({ total_commits: "unknown", commits_md: "_Failed to parse GitHub compare response._" }));
++  }
++')"
++
++TOTAL_COMMITS="$(PARSED="${parsed_compare}" node -e 'console.log(JSON.parse(process.env.PARSED).total_commits)')"
++COMMITS_MD="$(PARSED="${parsed_compare}" node -e 'console.log(JSON.parse(process.env.PARSED).commits_md)')"
++
++MARKER="<!-- upstream-sha: ${LATEST} -->"
++ISSUE_TITLE="Upstream changes available: ${UPSTREAM_REPO} (${SHORT_LATEST})"
++
++read -r -d '' ISSUE_BODY <<EOF || true
++Upstream [\`${UPSTREAM_REPO}\`](https://github.com/${UPSTREAM_REPO}) has new commits on \`${UPSTREAM_BRANCH}\`.
++
++- **Tracked baseline:** \`${BASE}\` (\`${SHORT_BASE}\`)
++- **Latest upstream:** \`${LATEST}\` (\`${SHORT_LATEST}\`)
++- **Total commits ahead:** ${TOTAL_COMMITS}
++- **Compare:** ${COMPARE_URL}
++- **Latest upstream release:** ${LATEST_RELEASE}
++
++### Commits (up to 20)
++${COMMITS_MD}
++
++### Merge Instructions
++\`\`\`bash
++git remote add upstream https://github.com/${UPSTREAM_REPO}.git 2>/dev/null || true
++git fetch upstream
++git checkout master
++git merge upstream/${UPSTREAM_BRANCH}
++# Resolve any conflicts, test build (npm run package), then update baseline:
++echo "${LATEST}" > .upstream-sha
++git add .upstream-sha
++git commit -m "chore: update upstream baseline to ${SHORT_LATEST}"
++git push
++\`\`\`
++
++${MARKER}
++EOF
++
++if [[ "${DRY_RUN}" == "1" ]]; then
++  echo "--- [DRY_RUN=1] Would create/update Forgejo issue in ${REPO} ---"
++  echo "Title: ${ISSUE_TITLE}"
++  echo "Body:"
++  echo "${ISSUE_BODY}"
++  echo "--- [DRY_RUN=1] End of preview ---"
++  exit 0
++fi
++
++if [[ -z "${TOKEN}" ]]; then
++  echo "Error: TOKEN (or FORGEJO_TOKEN / GITHUB_TOKEN) is required when DRY_RUN=0" >&2
++  exit 1
++fi
++
++AUTH_HEADER="Authorization: token ${TOKEN}"
++SEARCH_URL="${FORGEJO_API}/repos/${REPO}/issues?state=open&type=issues&q=Upstream%20changes%20available"
++OPEN_ISSUES_JSON="$(curl -fsSL -H "${AUTH_HEADER}" -H "Accept: application/json" "${SEARCH_URL}")"
++
++EXISTING_INFO="$(ISSUES_JSON="${OPEN_ISSUES_JSON}" MARKER="${MARKER}" node -e '
++  const issues = JSON.parse(process.env.ISSUES_JSON || "[]");
++  const marker = process.env.MARKER;
++  const match = issues.find(i => typeof i.title === "string" && i.title.startsWith("Upstream changes available"));
++  if (!match) {
++    console.log(JSON.stringify({ found: false }));
++  } else {
++    const bodyHasMarker = typeof match.body === "string" && match.body.includes(marker);
++    console.log(JSON.stringify({
++      found: true,
++      number: match.number,
++      html_url: match.html_url || "",
++      bodyHasMarker
++    }));
++  }
++')"
++
++FOUND="$(INFO="${EXISTING_INFO}" node -e 'console.log(JSON.parse(process.env.INFO).found ? "1" : "0")')"
++ISSUE_URL=""
++
++if [[ "${FOUND}" == "1" ]]; then
++  ISSUE_NUMBER="$(INFO="${EXISTING_INFO}" node -e 'console.log(JSON.parse(process.env.INFO).number)')"
++  ISSUE_URL="$(INFO="${EXISTING_INFO}" node -e 'console.log(JSON.parse(process.env.INFO).html_url)')"
++  BODY_HAS_MARKER="$(INFO="${EXISTING_INFO}" node -e 'console.log(JSON.parse(process.env.INFO).bodyHasMarker ? "1" : "0")')"
++
++  COMMENTS_HAVE_MARKER="0"
++  if [[ "${BODY_HAS_MARKER}" == "0" ]]; then
++    COMMENTS_JSON="$(curl -fsSL -H "${AUTH_HEADER}" -H "Accept: application/json" "${FORGEJO_API}/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" || echo "[]")"
++    COMMENTS_HAVE_MARKER="$(COMMENTS_JSON="${COMMENTS_JSON}" MARKER="${MARKER}" node -e '
++      const comments = JSON.parse(process.env.COMMENTS_JSON || "[]");
++      const marker = process.env.MARKER;
++      const has = Array.isArray(comments) && comments.some(c => typeof c.body === "string" && c.body.includes(marker));
++      console.log(has ? "1" : "0");
++    ')"
++  fi
++
++  if [[ "${BODY_HAS_MARKER}" == "1" || "${COMMENTS_HAVE_MARKER}" == "1" ]]; then
++    echo "Open issue #${ISSUE_NUMBER} already contains marker for ${LATEST}; skipping comment and Telegram notification."
++    exit 0
++  fi
++
++  echo "Adding update comment to existing issue #${ISSUE_NUMBER}..."
++  COMMENT_PAYLOAD="$(BODY="${ISSUE_BODY}" node -e 'console.log(JSON.stringify({ body: process.env.BODY }))')"
++  curl -fsSL -X POST \
++    -H "${AUTH_HEADER}" \
++    -H "Accept: application/json" \
++    -H "Content-Type: application/json" \
++    -d "${COMMENT_PAYLOAD}" \
++    "${FORGEJO_API}/repos/${REPO}/issues/${ISSUE_NUMBER}/comments" >/dev/null
++
++  if [[ -z "${ISSUE_URL}" ]]; then
++    ISSUE_URL="${FORGEJO_WEB}/${REPO}/issues/${ISSUE_NUMBER}"
++  fi
++  echo "Updated issue: ${ISSUE_URL}"
++else
++  echo "Creating new Forgejo issue in ${REPO}..."
++  CREATE_PAYLOAD="$(TITLE="${ISSUE_TITLE}" BODY="${ISSUE_BODY}" node -e '
++    console.log(JSON.stringify({ title: process.env.TITLE, body: process.env.BODY }));
++  ')"
++  CREATED_JSON="$(curl -fsSL -X POST \
++    -H "${AUTH_HEADER}" \
++    -H "Accept: application/json" \
++    -H "Content-Type: application/json" \
++    -d "${CREATE_PAYLOAD}" \
++    "${FORGEJO_API}/repos/${REPO}/issues")"
++  ISSUE_NUMBER="$(CREATED="${CREATED_JSON}" node -e 'console.log(JSON.parse(process.env.CREATED).number || "")')"
++  ISSUE_URL="$(CREATED="${CREATED_JSON}" node -e 'console.log(JSON.parse(process.env.CREATED).html_url || "")')"
++  if [[ -z "${ISSUE_URL}" && -n "${ISSUE_NUMBER}" ]]; then
++    ISSUE_URL="${FORGEJO_WEB}/${REPO}/issues/${ISSUE_NUMBER}"
++  fi
++  echo "Created issue: ${ISSUE_URL}"
++fi
++
++if [[ -n "${TELEGRAM_BOT_TOKEN:-}" && -n "${TELEGRAM_CHAT_ID:-}" ]]; then
++  echo "Sending Telegram notification..."
++  TG_PAYLOAD="$(
++    CHAT_ID="${TELEGRAM_CHAT_ID}" \
++    UPSTREAM_REPO="${UPSTREAM_REPO}" \
++    SHORT_BASE="${SHORT_BASE}" \
++    SHORT_LATEST="${SHORT_LATEST}" \
++    TOTAL_COMMITS="${TOTAL_COMMITS}" \
++    LATEST_RELEASE="${LATEST_RELEASE}" \
++    ISSUE_URL="${ISSUE_URL}" \
++    COMPARE_URL="${COMPARE_URL}" \
++    node -e '
++      const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
++      const lines = [
++        `<b>Upstream update: ${esc(process.env.UPSTREAM_REPO)}</b>`,
++        `Commits: <code>${esc(process.env.SHORT_BASE)}</code> → <code>${esc(process.env.SHORT_LATEST)}</code> (${esc(process.env.TOTAL_COMMITS)} ahead)`,
++        `Latest release: ${esc(process.env.LATEST_RELEASE)}`,
++        `Forgejo issue: <a href="${esc(process.env.ISSUE_URL)}">${esc(process.env.ISSUE_URL)}</a>`,
++        `Compare: <a href="${esc(process.env.COMPARE_URL)}">${esc(process.env.COMPARE_URL)}</a>`
++      ];
++      console.log(JSON.stringify({
++        chat_id: process.env.CHAT_ID,
++        text: lines.join("\n"),
++        parse_mode: "HTML",
++        disable_web_page_preview: true
++      }));
++    '
++  )"
++  curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
++    -H "Content-Type: application/json" \
++    -d "${TG_PAYLOAD}" >/dev/null
++  echo "Telegram notification sent."
++else
++  echo "Warning: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set; skipping Telegram notification."
++fi
+diff --git a/tools/verify-code.js b/tools/verify-code.js
+new file mode 100644
+index 0000000..e403689
+--- /dev/null
++++ b/tools/verify-code.js
+@@ -0,0 +1,213 @@
++#!/usr/bin/env node
++
++/**
++ * Static analysis, ES5 compatibility, and package metadata verifier for Jellyfin WebOS.
++ * Runs in CI (.forgejo/workflows/build.yml) and locally via `npm test`.
++ */
++
++const fs = require('fs');
++const path = require('path');
++const vm = require('vm');
++const { execFileSync } = require('child_process');
++
++const ROOT = path.resolve(__dirname, '..');
++
++let failures = 0;
++
++function pass(msg) {
++  console.log(`  [PASS] ${msg}`);
++}
++
++function fail(msg) {
++  console.error(`  [FAIL] ${msg}`);
++  failures++;
++}
++
++function readText(relPath) {
++  return fs.readFileSync(path.join(ROOT, relPath), 'utf8');
++}
++
++function readJson(relPath) {
++  try {
++    return JSON.parse(readText(relPath));
++  } catch (err) {
++    fail(`${relPath}: invalid JSON (${err.message})`);
++    return null;
++  }
++}
++
++console.log('=== 1. JSON & Package Metadata Validation ===');
++const pkg = readJson('package.json');
++const appinfo = readJson('frontend/appinfo.json');
++const svcPkg = readJson('services/package.json');
++const svcJson = readJson('services/services.json');
++
++if (pkg && appinfo && svcPkg && svcJson) {
++  if (pkg.version === appinfo.version) {
++    pass(`Version aligned across package.json and frontend/appinfo.json (${pkg.version})`);
++  } else {
++    fail(`Version mismatch: package.json (${pkg.version}) !== frontend/appinfo.json (${appinfo.version})`);
++  }
++
++  if (pkg.name === appinfo.id) {
++    pass(`Package ID aligned across package.json and frontend/appinfo.json (${appinfo.id})`);
++  } else {
++    fail(`Package ID mismatch: package.json (${pkg.name}) !== frontend/appinfo.json (${appinfo.id})`);
++  }
++
++  const expectedSvcId = `${appinfo.id}.service`;
++  if (svcPkg.name === expectedSvcId && svcJson.id === expectedSvcId) {
++    pass(`Service ID prefix matches app ID (${expectedSvcId})`);
++  } else {
++    fail(`Service ID must be "${expectedSvcId}" (got services/package.json="${svcPkg.name}", services/services.json="${svcJson.id}")`);
++  }
++}
++
++console.log('\n=== 2. Line Endings (LF) Check ===');
++const lfFiles = [
++  'package.json',
++  'frontend/appinfo.json',
++  'frontend/index.html',
++  'frontend/css/profiles.css',
++  'frontend/js/index.js',
++  'frontend/js/profiles.js',
++  'tools/gen-manifest.js',
++  'tools/sync-version.js',
++  'tools/upstream-check.sh',
++  'tools/verify-code.js',
++  '.forgejo/workflows/build.yml',
++  '.forgejo/workflows/upstream-check.yml',
++  'docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md',
++  'docs/nl.timsas.jellyfin.multiuser.yml',
++];
++
++for (const rel of lfFiles) {
++  const full = path.join(ROOT, rel);
++  if (!fs.existsSync(full)) continue;
++  const content = fs.readFileSync(full, 'utf8');
++  if (content.includes('\r')) {
++    fail(`${rel}: contains CRLF (\\r) line endings`);
++  } else {
++    pass(`${rel}: clean LF line endings`);
++  }
++}
++
++console.log('\n=== 3. JavaScript Syntax & Security Pattern Check ===');
++const frontendJsFiles = [
++  'frontend/js/ajax.js',
++  'frontend/js/storage.js',
++  'frontend/js/webOS.js',
++  'frontend/js/index.js',
++  'frontend/js/profiles.js',
++];
++
++const allJsFiles = [
++  ...frontendJsFiles,
++  'services/service.js',
++  'tools/gen-manifest.js',
++  'tools/sync-version.js',
++  'tools/verify-code.js',
++];
++
++for (const rel of allJsFiles) {
++  const code = readText(rel);
++  try {
++    new vm.Script(code, { filename: rel });
++    pass(`${rel}: valid JS syntax`);
++  } catch (err) {
++    fail(`${rel}: syntax error (${err.message})`);
++  }
++}
++
++for (const rel of frontendJsFiles) {
++  const code = readText(rel);
++  if (/\beval\s*\(|\bnew\s+Function\s*\(/.test(code)) {
++    fail(`${rel}: forbidden eval() or new Function() detected`);
++  } else {
++    pass(`${rel}: no eval() or new Function()`);
++  }
++}
++
++console.log('\n=== 4. Strict ES5 Compatibility Check (Frontend + Injected Scripts) ===');
++const tmpDir = fs.mkdtempSync('/tmp/jf-verify-');
++try {
++  // Extract dynamically generated iframe scripts from frontend/js/index.js
++  const indexCode = readText('frontend/js/index.js');
++  const sandbox = {
++    window: { addEventListener: function () {} },
++    document: { addEventListener: function () {}, querySelector: function () { return null; } },
++    webOS: {
++      deviceInfo: function () {},
++      fetchAppInfo: function () {},
++      platformBack: function () {},
++      service: { request: function () { return { cancel: function () {} }; } },
++    },
++    storage: { get: function () {}, set: function () {}, exists: function () { return false; } },
++    ajax: { request: function () {} },
++    profiles: {
++      currentServer: {
++        id: '52700477c4ac42898d10033606056ac6',
++        Id: '52700477c4ac42898d10033606056ac6',
++        baseurl: 'http://192.168.1.122:8096',
++        Name: "Tim's Jellyfin",
++      },
++    },
++    console: console,
++    setTimeout: setTimeout,
++    clearTimeout: clearTimeout,
++    setInterval: setInterval,
++    clearInterval: clearInterval,
++  };
++
++  vm.createContext(sandbox);
++  vm.runInContext(indexCode, sandbox, { filename: 'frontend/js/index.js' });
++
++  // Simulate authenticated user state to test credential clear & injection scripts
++  vm.runInContext(
++    'authenticatedUser = { Id: "df3a7ea8e3e94dbbaad654fd19fd62d6", Name: "tsas\\"test" }; authToken = "tok_123456";',
++    sandbox
++  );
++
++  const generatedScripts = {
++    'generated:getCredentialClearScript': sandbox.getCredentialClearScript(),
++    'generated:getCredentialInjectionScript': sandbox.getCredentialInjectionScript(),
++    'generated:getSwitchUserInjectionScript': sandbox.getSwitchUserInjectionScript(),
++  };
++
++  const filesToCheckEs5 = frontendJsFiles.map((f) => path.join(ROOT, f));
++
++  for (const [label, scriptText] of Object.entries(generatedScripts)) {
++    if (!scriptText || typeof scriptText !== 'string') {
++      fail(`${label}: did not return a non-empty script string`);
++      continue;
++    }
++    const outPath = path.join(tmpDir, `${label.replace(/[^a-zA-Z0-9_-]/g, '_')}.js`);
++    fs.writeFileSync(outPath, scriptText, 'utf8');
++    filesToCheckEs5.push(outPath);
++  }
++
++  try {
++    execFileSync('npx', ['--yes', 'acorn@8', '--ecma5', '--silent', ...filesToCheckEs5], {
++      cwd: ROOT,
++      stdio: 'pipe',
++    });
++    for (const rel of frontendJsFiles) {
++      pass(`${rel}: strict ES5 AST verified (acorn --ecma5)`);
++    }
++    for (const label of Object.keys(generatedScripts)) {
++      pass(`${label}: strict ES5 AST verified (acorn --ecma5)`);
++    }
++  } catch (err) {
++    const stderr = err.stderr ? err.stderr.toString() : err.message;
++    fail(`ES5 AST check failed:\n${stderr}`);
++  }
++} finally {
++  fs.rmSync(tmpDir, { recursive: true, force: true });
++}
++
++if (failures > 0) {
++  console.error(`\nVerification FAILED with ${failures} error(s).`);
++  process.exit(1);
++} else {
++  console.log('\nAll verification checks passed!');
++}

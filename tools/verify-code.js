@@ -77,6 +77,8 @@ const lfFiles = [
   'tools/verify-code.js',
   '.forgejo/workflows/build.yml',
   '.forgejo/workflows/upstream-check.yml',
+  'docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md',
+  'docs/nl.timsas.jellyfin.multiuser.yml',
 ];
 
 for (const rel of lfFiles) {

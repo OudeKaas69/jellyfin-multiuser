@@ -1,18 +1,18 @@
 {
-  "id": "org.jellyfin.webos",
-  "version": "2.0.0",
-  "title": "Jellyfin",
-  "appDescription": "A webOS client to connect to a Jellyfin Server instance and stream media.",
+  "id": "nl.timsas.jellyfin.multiuser",
+  "version": "1.0.0",
+  "title": "Jellyfin-Multiuser",
+  "appDescription": "Multi-user Jellyfin client with profile switcher and PIN protection",
   "icon": "frontend/assets/icon-80.png",
   "largeIcon": "frontend/assets/icon-130.png",
   "screenshots": [
     "frontend/assets/splash.png"
   ],
-  "author": "Jellyfin Project",
-  "license": "GPL-2.0",
-  "sourceUrl": "https://forgejo.timsas.nl/tsas/jellyfin-webos",
+  "author": "Tim Sas / Jellyfin Project",
+  "license": "MPL-2.0",
+  "sourceUrl": "https://github.com/OudeKaas69/jellyfin-multiuser",
   "homepage": "https://jellyfin.org/",
-  "bugs": "https://github.com/jellyfin/jellyfin-media-player/issues",
+  "bugs": "https://github.com/OudeKaas69/jellyfin-multiuser/issues",
   "tags": [
     "media",
     "streaming",

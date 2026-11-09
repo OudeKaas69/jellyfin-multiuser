@@ -1,13 +1,18 @@
-# Jellyfin for webOS — Multi-user fork
+# Jellyfin-Multiuser for webOS (`nl.timsas.jellyfin.multiuser` v1.0.0)
 
-This repository is a multi-user fork of [`jellyfin/jellyfin-webos`](https://github.com/jellyfin/jellyfin-webos), tested on **LG OLED65G4 (webOS 10.3.1)**.
+**Jellyfin-Multiuser** (`nl.timsas.jellyfin.multiuser`) is a standalone multi-user fork of [`jellyfin/jellyfin-webos`](https://github.com/jellyfin/jellyfin-webos), tested on **LG OLED65G4 (webOS 10.3.1)**. Because it uses a distinct package ID (`nl.timsas.jellyfin.multiuser`) and discovery service ID (`nl.timsas.jellyfin.multiuser.service`), it can be installed side-by-side with the official Jellyfin webOS client (`org.jellyfin.webos`).
+
+- **Public Repository:** [`https://github.com/OudeKaas69/jellyfin-multiuser`](https://github.com/OudeKaas69/jellyfin-multiuser)
+- **Architecture & Upstream Diff Walkthrough:** [`docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md`](docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md)
+- **Full Upstream Patch:** [`docs/upstream-diff.patch`](docs/upstream-diff.patch)
+- **webOS Homebrew Channel Submission Manifest:** [`docs/nl.timsas.jellyfin.multiuser.yml`](docs/nl.timsas.jellyfin.multiuser.yml)
 
 ## What This Fork Adds
 
 - **"Who's watching?" User Picker:** Displays public server users alongside locally saved user profiles — works even when all accounts are hidden from the login screen on the Jellyfin server (`/Users/Public` returns `[]`).
 - **Add User & Quick Connect:** Add accounts via username/password or Jellyfin Quick Connect code directly from the TV.
 - **Per-Profile 4-Digit PIN Lock:** Optional 4-digit PIN per profile with an on-screen TV remote keypad (D-pad + numeric buttons).
-- **Profile Management:** Manage/remove PINs or remove saved profiles from the picker.
+- **Profile Management:** Attached action drawer below the selected profile card to Sign In, Enable/Disable Auto Sign-in, Add/Change/Remove PIN, or Remove saved profiles.
 - **Fast User Switching:** Injects a **Switch User** icon into the Jellyfin top header bar and an entry in the user Settings menu to return to the profile picker without signing out or losing saved tokens.
 - **TV Remote Sign-In UX:** Input fields only open the webOS on-screen keyboard when pressing **OK/Enter**, allowing smooth D-pad up/down traversal across inputs and buttons.
 
@@ -16,16 +21,19 @@ This repository is a multi-user fork of [`jellyfin/jellyfin-webos`](https://gith
 - The webOS wrapper hosts an overlay UI (`frontend/`) and loads the server's `jellyfin-web` interface inside a full-screen iframe.
 - Saved profiles and access tokens for a server are persisted in the wrapper's `localStorage` under the key `jellyfin_auth_<serverId>`.
 - When a profile is selected (and unlocked), the wrapper injects the selected user's credentials into the `jellyfin-web` iframe's `localStorage` (`jellyfin_credentials`) before navigating into the web UI.
+- See [`docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md`](docs/UPSTREAM_DIFF_AND_ARCHITECTURE.md) for a detailed file-by-file and function-by-function walkthrough of all changes relative to upstream `jellyfin/jellyfin-webos`.
 - **PIN Security Note:** Profile PINs are stored locally in plain text inside `localStorage`. They are designed as a household UX convenience lock (e.g., preventing accidental profile switches or kids opening adult profiles) and are **not a cryptographic security boundary**.
 
 ## Building
 
 ```sh
 npm install
+npm test
 npm run package
+npm run manifest
 ```
 
-This outputs `build/org.jellyfin.webos_2.0.0_all.ipk` (and `npm run manifest` generates `build/org.jellyfin.webos.manifest.json`).
+This outputs `build/nl.timsas.jellyfin.multiuser_1.0.0_all.ipk` and `build/nl.timsas.jellyfin.multiuser.manifest.json`.
 
 ## Deploying to TV
 
@@ -37,43 +45,40 @@ This outputs `build/org.jellyfin.webos_2.0.0_all.ipk` (and `npm run manifest` ge
    ```
 2. On the TV (via `telnet <tv-ip> 23` or SSH as `root`), download the IPK to `/tmp` and install via `appInstallService`:
    ```sh
-   wget -O /tmp/x.ipk http://192.168.1.122:8765/org.jellyfin.webos_2.0.0_all.ipk
+   wget -O /tmp/x.ipk http://192.168.1.122:8765/nl.timsas.jellyfin.multiuser_1.0.0_all.ipk
    luna-send -w 60000 -i luna://com.webos.appInstallService/dev/install '{"id":"com.ares.defaultName","ipkUrl":"/tmp/x.ipk","subscribe":true}'
    ```
 3. Launch the app:
    ```sh
-   luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"org.jellyfin.webos"}'
+   luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"nl.timsas.jellyfin.multiuser"}'
    ```
 
 ### LG Developer Mode TV (via `ares-cli`)
 
 ```sh
-npx ares-install -d tv build/org.jellyfin.webos_2.0.0_all.ipk
-npx ares-launch -d tv org.jellyfin.webos
+npx ares-install -d tv build/nl.timsas.jellyfin.multiuser_1.0.0_all.ipk
+npx ares-launch -d tv nl.timsas.jellyfin.multiuser
 ```
 
 ## Upstream Sync
 
-Upstream tracking is automated via Forgejo Actions (`.forgejo/workflows/upstream-check.yml` + `tools/upstream-check.sh`):
+Upstream tracking is automated via CI workflows (`.forgejo/workflows/upstream-check.yml` + `tools/upstream-check.sh`):
 
 - **Tracked baseline:** `.upstream-sha` at the repository root stores the last merged commit SHA from `https://github.com/jellyfin/jellyfin-webos` (`master`).
-- **Weekly check:** Runs every Monday at 08:00 UTC (and on `workflow_dispatch`). If upstream `master` moves ahead of `.upstream-sha`, the workflow opens or updates a Forgejo issue (`Upstream changes available: ...`) and sends a Telegram alert.
-- **Workflow secrets:**
-  - `FORGEJO_TOKEN` (optional; falls back to automatic `github.token`)
-  - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (optional; skips Telegram notification with a warning if unset)
+- **Weekly check:** Runs every Monday at 08:00 UTC (and on `workflow_dispatch`). If upstream `master` moves ahead of `.upstream-sha`, the workflow opens or updates an issue (`Upstream changes available: ...`) and sends a Telegram alert.
 - **Manual merge steps:**
   ```sh
   git remote add upstream https://github.com/jellyfin/jellyfin-webos.git
   git fetch upstream
   git merge upstream/master
-  # Resolve conflicts if any, verify build with `npm run package`, then update .upstream-sha:
+  # Resolve conflicts if any, verify build with `npm test && npm run package`, then update .upstream-sha:
   git rev-parse upstream/master > .upstream-sha
   git add .upstream-sha
   ```
 
-## Planned Homebrew Channel Publication
+## Homebrew Channel Publication
 
-Publishing this fork as a standalone webOS Homebrew Channel package named **Jellyfin-Multiuser** (app ID `nl.timsas.jellyfin.multiuser`, allowing side-by-side installation with official `org.jellyfin.webos`) is tracked in [Issue #6](https://forgejo.timsas.nl/tsas/jellyfin-webos/issues/6).
+**Jellyfin-Multiuser** (`nl.timsas.jellyfin.multiuser`) is packaged for the [webOS Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel). The [`webosbrew/apps-repo`](https://github.com/webosbrew/apps-repo) package submission manifest is maintained in [`docs/nl.timsas.jellyfin.multiuser.yml`](docs/nl.timsas.jellyfin.multiuser.yml), pointing to [`https://github.com/OudeKaas69/jellyfin-multiuser/releases/latest/download/nl.timsas.jellyfin.multiuser.manifest.json`](https://github.com/OudeKaas69/jellyfin-multiuser/releases/latest/download/nl.timsas.jellyfin.multiuser.manifest.json).
 
 ---
 
@@ -163,11 +168,11 @@ Once you have installed the devmode app on your target TV and logged in with you
 ./dev.sh ares-device-info -d tv
 
 # This command installs the app. Remember to build it first.
-./dev.sh ares-install -d tv org.jellyfin.webos_*.ipk
+./dev.sh ares-install -d tv nl.timsas.jellyfin.multiuser_*.ipk
 
 # Launch the app and the web developer console.
-./dev.sh ares-inspect -d tv org.jellyfin.webos
+./dev.sh ares-inspect -d tv nl.timsas.jellyfin.multiuser
 
 # Or just launch the app.
-./dev.sh ares-launch -d tv org.jellyfin.webos
+./dev.sh ares-launch -d tv nl.timsas.jellyfin.multiuser
 ```

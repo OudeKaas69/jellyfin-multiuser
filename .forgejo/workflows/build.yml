@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node tools/gen-manifest.js build/org.jellyfin.webos.manifest.json
+          node tools/gen-manifest.js build/nl.timsas.jellyfin.multiuser.manifest.json
           ls -l build
           sha256sum build/*.ipk
 
@@ -93,3 +93,49 @@ jobs:
 
           echo "IPK sha256:"
           sha256sum build/*.ipk
+
+      - name: Mirror to GitHub (OudeKaas69/jellyfin-multiuser)
+        if: ${{ secrets.GITHUB_MIRROR_TOKEN != '' }}
+        shell: bash
+        env:
+          GITHUB_MIRROR_TOKEN: ${{ secrets.GITHUB_MIRROR_TOKEN }}
+          GH_REPO: OudeKaas69/jellyfin-multiuser
+        run: |
+          set -euo pipefail
+          git fetch --unshallow 2>/dev/null || true
+          git fetch --tags --force 2>/dev/null || true
+          git push --force "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/${GH_REPO}.git" HEAD:refs/heads/master
+          git push --force "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/${GH_REPO}.git" --tags
+
+          if [ -n "${RELEASE_TAG}" ]; then
+            gh_api="https://api.github.com/repos/${GH_REPO}"
+            gh_auth="Authorization: Bearer ${GITHUB_MIRROR_TOKEN}"
+            gh_accept="Accept: application/vnd.github+json"
+
+            release_json=$(curl -sS -H "$gh_auth" -H "$gh_accept" "${gh_api}/releases/tags/${RELEASE_TAG}" || true)
+            release_id=$(printf '%s' "$release_json" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);console.log(j.id||"")}catch(e){console.log("")}})')
+
+            if [ -z "$release_id" ]; then
+              echo "Creating GitHub release ${RELEASE_TAG}..."
+              create_payload=$(TAG="$RELEASE_TAG" node -e 'console.log(JSON.stringify({tag_name:process.env.TAG,name:"Jellyfin-Multiuser "+process.env.TAG,draft:false,prerelease:false}))')
+              release_json=$(curl -fsS -X POST -H "$gh_auth" -H "$gh_accept" \
+                -d "$create_payload" \
+                "${gh_api}/releases")
+              release_id=$(printf '%s' "$release_json" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).id))')
+            fi
+
+            echo "GitHub Release ${RELEASE_TAG} has id ${release_id}"
+            for file in build/*.ipk build/*.manifest.json; do
+              name=$(basename "$file")
+              existing=$(printf '%s' "$release_json" | NAME="$name" node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const a=(JSON.parse(d).assets||[]).find(x=>x.name===process.env.NAME);console.log(a?a.id:"")})')
+              if [ -n "$existing" ]; then
+                echo "Deleting existing GitHub asset ${name} (${existing})"
+                curl -fsS -X DELETE -H "$gh_auth" -H "$gh_accept" "${gh_api}/releases/assets/${existing}"
+              fi
+              echo "Uploading ${name} to GitHub Release"
+              curl -fsS -X POST -H "$gh_auth" -H "$gh_accept" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary "@${file}" \
+                "https://uploads.github.com/repos/${GH_REPO}/releases/${release_id}/assets?name=${name}" > /dev/null
+            done
+          fi
