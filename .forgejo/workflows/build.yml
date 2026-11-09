@@ -95,21 +95,23 @@ jobs:
           sha256sum build/*.ipk
 
       - name: Mirror to GitHub (OudeKaas69/jellyfin-multiuser)
-        if: ${{ secrets.GITHUB_MIRROR_TOKEN != '' }}
+        if: ${{ secrets.GH_MIRROR_TOKEN != '' }}
         shell: bash
         env:
-          GITHUB_MIRROR_TOKEN: ${{ secrets.GITHUB_MIRROR_TOKEN }}
+          GH_MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
           GH_REPO: OudeKaas69/jellyfin-multiuser
         run: |
           set -euo pipefail
           git fetch --unshallow 2>/dev/null || true
-          git fetch --tags --force 2>/dev/null || true
-          git push --force "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/${GH_REPO}.git" HEAD:refs/heads/master
-          git push --force "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/${GH_REPO}.git" --tags
+          git fetch origin master:refs/remotes/origin/master 2>/dev/null || true
+          git push --force "https://x-access-token:${GH_MIRROR_TOKEN}@github.com/${GH_REPO}.git" HEAD:refs/heads/master
 
           if [ -n "${RELEASE_TAG}" ]; then
+            git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force 2>/dev/null || true
+            git push --force "https://x-access-token:${GH_MIRROR_TOKEN}@github.com/${GH_REPO}.git" "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+
             gh_api="https://api.github.com/repos/${GH_REPO}"
-            gh_auth="Authorization: Bearer ${GITHUB_MIRROR_TOKEN}"
+            gh_auth="Authorization: Bearer ${GH_MIRROR_TOKEN}"
             gh_accept="Accept: application/vnd.github+json"
 
             release_json=$(curl -sS -H "$gh_auth" -H "$gh_accept" "${gh_api}/releases/tags/${RELEASE_TAG}" || true)
