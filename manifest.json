@@ -1,6 +1,6 @@
 {
   "id": "nl.timsas.jellyfin.multiuser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "title": "Jellyfin-Multiuser",
   "appDescription": "Multi-user Jellyfin client with profile switcher and PIN protection",
   "icon": "frontend/assets/icon-80.png",

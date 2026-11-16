@@ -1,6 +1,6 @@
 # Upstream Diff & Architecture Walkthrough (`Jellyfin-Multiuser` / `nl.timsas.jellyfin.multiuser`)
 
-This document provides a complete architectural overview and file-by-file, function-by-function code walkthrough of all changes made in **`Jellyfin-Multiuser`** (`nl.timsas.jellyfin.multiuser` v1.0.0) relative to upstream [`jellyfin/jellyfin-webos`](https://github.com/jellyfin/jellyfin-webos) at commit [`ab4794046467cdb88212ccc29212300cf9112a43`](https://github.com/jellyfin/jellyfin-webos/commit/ab4794046467cdb88212ccc29212300cf9112a43).
+This document provides a complete architectural overview and file-by-file, function-by-function code walkthrough of all changes made in **`Jellyfin-Multiuser`** (`nl.timsas.jellyfin.multiuser` v1.0.0) relative to upstream [`jellyfin/jellyfin-webos`](https://github.com/jellyfin/jellyfin-webos) at commit [`407a1307bf6bf19041674ea7ee1fbbc2fb33577c`](https://github.com/jellyfin/jellyfin-webos/commit/407a1307bf6bf19041674ea7ee1fbbc2fb33577c).
 
 For the exact line-by-line unified diff against upstream, see [`docs/upstream-diff.patch`](upstream-diff.patch).
 
@@ -46,7 +46,7 @@ While simple, upstream's direct handoff has several limitations on shared househ
 
 ---
 
-## 2. Summary of Modified and Added Files Since `ab47940464`
+## 2. Summary of Modified and Added Files Since `407a130464`
 
 | File | Status | Purpose |
 | :--- | :--- | :--- |

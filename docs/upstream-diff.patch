@@ -1,5 +1,5 @@
 diff --git a/frontend/appinfo.json b/frontend/appinfo.json
-index 76cec44..cf8f0fc 100644
+index 76cec44..0bdb91f 100644
 --- a/frontend/appinfo.json
 +++ b/frontend/appinfo.json
 @@ -1,16 +1,16 @@
@@ -13,7 +13,7 @@ index 76cec44..cf8f0fc 100644
 +    "title": "Jellyfin-Multiuser",
      "type": "web",
 -    "version": "1.2.2",
-+    "version": "1.0.0",
++    "version": "1.0.1",
      "splashBackground": "assets/splash.png",
      "bgColor": "#000b25",
 -    "vendor": "Jellyfin Project",
@@ -27,6 +27,10 @@ index 76cec44..cf8f0fc 100644
 diff --git a/frontend/assets/icon-130.png b/frontend/assets/icon-130.png
 index e8e79d6..20f7229 100644
 Binary files a/frontend/assets/icon-130.png and b/frontend/assets/icon-130.png differ
+diff --git a/frontend/assets/icon-160.png b/frontend/assets/icon-160.png
+new file mode 100644
+index 0000000..e3695ab
+Binary files /dev/null and b/frontend/assets/icon-160.png differ
 diff --git a/frontend/assets/icon-80.png b/frontend/assets/icon-80.png
 index f52e687..e67ddd0 100644
 Binary files a/frontend/assets/icon-80.png and b/frontend/assets/icon-80.png differ
@@ -928,7 +932,7 @@ index 8bcd074..64b5045 100644
  </body>
  
 diff --git a/frontend/js/index.js b/frontend/js/index.js
-index af47110..19c95f1 100644
+index f90fbd1..b97fc1d 100644
 --- a/frontend/js/index.js
 +++ b/frontend/js/index.js
 @@ -12,10 +12,14 @@ var manifest = false;
@@ -945,9 +949,9 @@ index af47110..19c95f1 100644
 +var authToken = null;
 +
  var deviceInfo;
+ var deviceInfoCallback;
  webOS.deviceInfo(function (info) {
-     deviceInfo = info;
-@@ -57,13 +61,13 @@ function navigate(amount) {
+@@ -70,13 +74,13 @@ function navigate(amount) {
          navigationInit();
      } else {
          //Isolate the node that we're after
@@ -964,7 +968,7 @@ index af47110..19c95f1 100644
  
          //focus the following element
          if (allElements[currentIndex + amount])
-@@ -87,24 +91,95 @@ function rightArrowPressed() {
+@@ -100,24 +104,95 @@ function rightArrowPressed() {
      // Your stuff here
  }
  
@@ -1064,7 +1068,7 @@ index af47110..19c95f1 100644
              break;
          case 461: // Back
              backPressed();
-@@ -294,19 +369,21 @@ function handleSuccessServerInfo(data, baseurl, auto_connect) {
+@@ -307,19 +382,21 @@ function handleSuccessServerInfo(data, baseurl, auto_connect) {
                  displayError("The server ID has changed since the last connection, please check if you are reaching your own server. To connect anyway, click connect again.");
                  delete connected_servers[server_id]
                  connected_servers[data.Id] = ({ 'baseurl': baseurl, 'auto_connect': false, 'id': false })
@@ -1089,7 +1093,7 @@ index af47110..19c95f1 100644
      return true;
  }
  
-@@ -333,38 +410,97 @@ function handleSuccessManifest(data, baseurl) {
+@@ -346,38 +423,97 @@ function handleSuccessManifest(data, baseurl) {
  
      curr_req = false;
  
@@ -1215,7 +1219,7 @@ index af47110..19c95f1 100644
  }
  
  function handleAbort() {
-@@ -452,71 +588,498 @@ function injectStyleText(document, text) {
+@@ -465,59 +601,154 @@ function injectStyleText(document, text) {
      document.body.appendChild(style);
  }
  
@@ -1389,8 +1393,10 @@ index af47110..19c95f1 100644
 +    contentFrame.addEventListener('load', handoffLoadHandler);
 +    armUnload(contentFrame.contentWindow);
  
-     contentFrame.style.display = '';
-     contentFrame.src = url;
+     // Ensure deviceInfo is available before loading the iframe.
+     // webOS.deviceInfo() is an async Luna service call that may not have completed yet.
+@@ -527,13 +758,345 @@ function handoff(url, bundle) {
+     });
  }
  
 +/**
@@ -1735,7 +1741,7 @@ index af47110..19c95f1 100644
              startDiscovery();
              document.querySelector('.container').style.display = '';
              hideConnecting();
-@@ -627,7 +1190,7 @@ function startDiscovery() {
+@@ -644,7 +1207,7 @@ function startDiscovery() {
          return;
      }
      console.log("Starting server autodiscovery...");
@@ -4141,7 +4147,7 @@ index 0000000..dfdd424
 +    }
 +};
 diff --git a/package.json b/package.json
-index c2f7046..01c9ab4 100644
+index c2f7046..67d941a 100644
 --- a/package.json
 +++ b/package.json
 @@ -1,16 +1,16 @@
@@ -4150,7 +4156,7 @@ index c2f7046..01c9ab4 100644
 -  "version": "1.2.2",
 -  "description": "Jellyfin WebOS client",
 +  "name": "nl.timsas.jellyfin.multiuser",
-+  "version": "1.0.0",
++  "version": "1.0.1",
 +  "description": "Jellyfin WebOS client with multi-user profile switcher and PIN lock",
    "scripts": {
      "check": "ares-package --check",

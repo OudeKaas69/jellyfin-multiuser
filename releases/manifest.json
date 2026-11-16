@@ -1,6 +1,6 @@
 {
   "id": "nl.timsas.jellyfin.multiuser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "app",
   "title": "Jellyfin-Multiuser",
   "description": "Multi-user Jellyfin client with profile switcher and PIN protection",
@@ -10,8 +10,8 @@
   "license": "MPL-2.0",
   "sourceUrl": "https://github.com/OudeKaas69/jellyfin-multiuser",
   "homepage": "https://jellyfin.org/",
-  "downloadUrl": "https://github.com/OudeKaas69/jellyfin-multiuser/releases/download/v1.0.0/nl.timsas.jellyfin.multiuser_1.0.0_all.ipk",
-  "ipkUrl": "https://github.com/OudeKaas69/jellyfin-multiuser/releases/download/v1.0.0/nl.timsas.jellyfin.multiuser_1.0.0_all.ipk",
+  "downloadUrl": "https://github.com/OudeKaas69/jellyfin-multiuser/releases/download/v1.0.0/nl.timsas.jellyfin.multiuser_1.0.1_all.ipk",
+  "ipkUrl": "https://github.com/OudeKaas69/jellyfin-multiuser/releases/download/v1.0.0/nl.timsas.jellyfin.multiuser_1.0.1_all.ipk",
   "requiredACG": [
     "device",
     "application.launcher",

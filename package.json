@@ -1,6 +1,6 @@
 {
   "name": "nl.timsas.jellyfin.multiuser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Jellyfin WebOS client with multi-user profile switcher and PIN lock",
   "scripts": {
     "check": "ares-package --check",
